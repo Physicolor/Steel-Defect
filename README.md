@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**基于YOLO/UNet双模的实时钢材缺陷检测系统**
+**基于YOLO26的实时钢材缺陷检测系统**
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
@@ -28,7 +28,7 @@
 ## ✨ 功能特性
 
 ### 核心功能
-- 🎯 **双模检测**: 支持YOLO目标检测和UNet语义分割
+- 🎯 **双模检测**: 支持YOLO目标检测和UNet语义分割（暂未开放）
 - 📹 **实时视频流**: 支持USB摄像头和IP摄像头
 - 🔍 **智能分析**: AI大模型辅助缺陷分析（讯飞星火）
 - 📊 **检测记录**: 自动保存检测结果和图片组
@@ -125,7 +125,6 @@ SteelDefect/
 │   ├── model_service.py       # 模型加载与推理服务
 │   ├── video_service.py       # 摄像头管理服务
 │   ├── record_service.py      # 检测记录服务
-│   ├── email_service.py       # 邮件报警服务
 │   ├── llm_service.py         # 大模型API服务
 │   └── spark_image_service.py # 讯飞图片理解服务
 │
@@ -313,7 +312,7 @@ SPARK_IMAGE_API_SECRET=your_api_secret
 
 如有问题或建议，请通过以下方式联系：
 - 提交 GitHub Issue
-- 发送邮件至: [your-email@example.com]
+- 发送邮件至: [Sparxiezm@outlook.com]
 
 ---
 
