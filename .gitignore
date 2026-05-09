@@ -42,9 +42,12 @@ records.json
 model_config.json
 
 # 模型权重文件（体积大，建议单独管理）
-*.pt
+# *.pt - 已注释，允许上传YOLO模型
 *.pth
 *.onnx
+
+# 允许上传特定的YOLO模型
+!best (1).pt
 
 # 音频文件
 *.wav
