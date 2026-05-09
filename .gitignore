@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 环境变量配置文件（包含敏感信息）
+.env
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 运行时生成的数据文件(保留示例但忽略实际数据)
+captures/
+captures特殊/
+records.json
+model_config.json
+
+# 模型权重文件（体积大，建议单独管理）
+*.pt
+*.pth
+*.onnx
+
+# 音频文件
+*.wav
+
+# 上传目录
+uploads/*
+!uploads/.gitkeep
+
+# 日志文件
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Windows特殊文件
+nul

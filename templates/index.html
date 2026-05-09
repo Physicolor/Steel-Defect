@@ -1,0 +1,2203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>钢材缺陷检测系统</title>
+    
+    <!-- 主样式 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    
+    <meta name="robots" content="noindex,nofollow">
+</head>
+<body>
+    <div class="app">
+        <!-- iframe容器：用于平滑切换检测记录页面 -->
+        <div id="iframeContainer" class="iframe-container">
+            <iframe id="capturesIframe" src="" frameborder="0"></iframe>
+        </div>
+        
+        <!-- 顶部导航 -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="logo">
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 12L20 6L32 12V28L20 34L8 28V12Z" fill="currentColor" opacity="0.9"/>
+                        <path d="M8 12L20 18L32 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M20 18V34" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M8 12V28L20 34" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M32 12V28L20 34" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <line x1="12" y1="15" x2="12" y2="25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                        <line x1="28" y1="15" x2="28" y2="25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                    </svg>
+                </div>
+                <div class="title">
+                    <h1>钢材缺陷检测系统</h1>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="folder-btn" title="检测记录" id="folderBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <!-- 预加载状态指示器 -->
+                    <span class="preload-indicator" id="preloadIndicator" hidden></span>
+                </button>
+                <button class="settings-btn" title="设置">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- 主内容 - 三栏布局 -->
+        <main class="main three-column-layout">
+            <!-- 左侧面板: 系统状态、模型信息、检测日志 -->
+            <aside class="left-sidebar">
+                <div class="sidebar-content">
+                <!-- 系统状态 -->
+                <div class="panel">
+                    <div class="card-title">系统状态</div>
+                    <div id="systemStatus" class="panel-content">
+                        <div class="status-row">
+                            <strong>摄像头</strong>
+                            <span id="statusCamera">已关闭</span>
+                        </div>
+                        <div class="status-row">
+                            <strong>检测模式</strong>
+                            <span id="statusMode">缺陷检测</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模型信息 -->
+                <div class="panel">
+                    <div class="card-title">模型信息</div>
+                    <div id="modelInfo" class="panel-content">
+                        <div class="status-row">
+                            <strong>当前模型</strong>
+                            <span id="statusModelType">-</span>
+                        </div>
+                        <div class="status-row">
+                            <strong>设备</strong>
+                            <span id="statusDevice">-</span>
+                        </div>
+                        <div class="status-row">
+                            <strong>类别数</strong>
+                            <span id="statusClassTotal">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 检测日志 -->
+                <div class="panel">
+                    <div class="card-title">检测日志</div>
+                    <div id="eventLog" class="panel-content">
+                        <div class="status-row event-log-latest">
+                            <strong>最新检测</strong>
+                            <span id="statusEvent">-</span>
+                        </div>
+                        <ul id="eventsList" class="event-log">
+                            <li class="muted">暂无检测记录</li>
+                        </ul>
+                    </div>
+                </div>
+                </div><!-- /.sidebar-content -->
+            </aside>
+
+            <!-- 中间面板: 摄像头/图片检测 -->
+            <section class="center-panel">
+                <!-- 隐藏的元素，供 app.js 使用 -->
+                <select id="cameraSelect" class="hidden-element">
+                    <option value="none">关闭</option>
+                    <option value="local">电脑摄像头</option>
+                    <option value="ip">IP摄像头</option>
+                </select>
+                <select id="mode" class="hidden-element">
+                    <option value="detection">检测模式 (YOLO)</option>
+                    <option value="segmentation">分割模式 (UNet)</option>
+                </select>
+                
+                <!-- 视频检测区域 -->
+                <div id="videoDetectionSection" class="detection-section">
+                    <div class="video-card">
+                        <!-- 摄像头标题栏 -->
+                        <div class="camera-header">
+                            <div class="camera-title">摄像头</div>
+                            <div class="camera-switch" onclick="toggleLocalCamera();" title="开启/关闭摄像头">
+                                <div class="switch-track">
+                                    <div class="switch-thumb"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="video-box" class="video-box">
+                            <img id="videoFeed" src="{{ url_for('video_feed') }}" alt="视频流" draggable="false" />
+                            <canvas id="canvas"></canvas>
+                            <div id="overlayMessage" class="overlay-message" hidden>请选择摄像头源</div>
+                        </div>
+
+                        <div class="legend">
+                            <div><span class="legend-box gb"></span>检测框</div>
+                        </div>
+                    </div>
+
+                    <!-- 下方设置 -->
+                    <div class="below-video-settings">
+                        <!-- 红框缺陷已移至右侧 -->
+                    </div>
+                </div>
+
+                <!-- 图片检测区域(默认隐藏) -->
+                <div id="imageDetectionSection" class="detection-section" hidden>
+                    <div class="upload-panel" id="uploadPanel">
+                        <div class="camera-header">
+                            <div class="camera-title">上传图片</div>
+                            <div class="camera-header-actions">
+                                <button id="splitViewBtn" class="btn" title="分屏模式" hidden>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="12" y1="3" x2="12" y2="21"></line>
+                                    </svg>
+                                    AI侧栏
+                                </button>
+
+                                <button id="detectBtn" class="btn primary" hidden>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <path d="m21 21-4.35-4.35"></path>
+                                    </svg>
+                                    开始检测
+                                </button>
+                            </div>
+                        </div>
+                
+                        <!-- 上传区域 -->
+                        <div class="upload-zone" id="uploadZone">
+                            <svg class="upload-icon" viewBox="0 0 64 64" width="64" height="64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 16C8 14.8954 8.89543 14 10 14H22L28 20H54C55.1046 20 56 20.8954 56 22V48C56 49.1046 55.1046 50 54 50H10C8.89543 50 8 49.1046 8 48V16Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+                                <path d="M8 24H56V48C56 49.1046 55.1046 50 54 50H10C8.89543 50 8 49.1046 8 48V24Z" fill="currentColor" fill-opacity="0.1" stroke="currentColor" stroke-width="3"/>
+                            </svg>
+                            <div class="upload-hint">点击或拖拽图片到此处</div>
+                            <div class="muted upload-subhint">JPG / PNG / BMP</div>
+                        </div>
+                        
+                        <input type="file" id="fileInput" accept="image/*" multiple class="hidden-element" />
+                
+                        <!-- 分屏模式下的右侧AI分析面板 -->
+                        <div id="splitAIAnalysisPanel">
+                            <!-- 标题栏：标题 + 按钮 -->
+                            <div class="camera-header">
+                                <div class="camera-title">AI分析报告</div>
+                                <!-- AI分析按钮(始终显示) -->
+                                <div id="splitAIAnalysisSection" class="split-ai-section">
+                                    <button id="splitAnalyzeWithLLMBtn" class="btn primary">
+                                        开始AI分析
+                                    </button>
+                                </div>
+                            </div>
+                                            
+                            <!-- AI分析结果 -->
+                            <div id="splitAIAnalysisResult" class="split-ai-section" hidden>
+                                <div id="splitAIAnalysisLoading" class="ai-loading" hidden>
+                                    <div class="spinner"></div>
+                                    <div class="ai-loading-text">正在调用AI进行分析，请稍候...</div>
+                                </div>
+                                <div id="splitAIAnalysisContent" class="split-ai-content"></div>
+                            </div>
+                                            
+                            <!-- 未分析时的提示 -->
+                            <div id="splitNoAnalysis" class="split-ai-section no-analysis-hint">
+                            <div class="split-no-analysis-hint">上传图片并检测后，点击"开始AI分析"获取智能报告</div>
+                            </div>
+                        </div>
+                
+                        <!-- 图片显示区域 -->
+                        <div class="images-container" id="imagesContainer" hidden>
+                            <div class="image-wrapper">
+                                <button class="clear-image-btn" id="clearImageBtn" title="清除图片，重新上传">×</button>
+                                <img id="originalImageDisplay" alt="原图" />
+                                <input class="image-label image-label-input" id="imageLabel" type="text" value="原图" readonly />
+                            </div>
+                            <div class="image-wrapper" id="annotatedImageWrapper" hidden>
+                                <img id="annotatedImageDisplay" alt="标注图" />
+                                <div class="image-label">标注图</div>
+                            </div>
+                            <div class="image-wrapper" id="heatmapImageWrapper" hidden>
+                                <img id="heatmapImageDisplay" alt="热力图" />
+                                <div class="image-label">热力图</div>
+                            </div>
+                            <button class="nav-arrow prev-arrow" id="prevImageBtn" hidden>❮</button>
+                            <button class="nav-arrow next-arrow" id="nextImageBtn" hidden>❯</button>
+                        </div>
+                
+                        <!-- 进度条 -->
+                        <div class="progress-container" id="progressContainer" hidden>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressFill"></div>
+                            </div>
+                            <div class="progress-text" id="progressText">准备中...</div>
+                        </div>
+                
+                        <!-- 检测数据表格 -->
+                        <div id="detectionDataSection" class="detection-data-section" hidden>
+                            <h4 class="detection-data-title">📋 检测数据</h4>
+                            <div id="resultContent"></div>
+                        </div>
+                
+                        <div class="loading" id="loading">
+                            <div class="spinner"></div>
+                            <div class="loading-text">检测中，请稍候...</div>
+                        </div>
+                
+                        <div id="statusText" class="status-text" hidden></div>
+                        
+                        <!-- 使用说明卡片 - 移到最后面 -->
+                        <div class="upload-instructions" id="uploadInstructions">
+                            <div class="instructions-title">使用说明</div>
+                            <div class="instructions-list">
+                                <div class="instruction-item">支持 JPG、PNG、BMP 格式的图片文件</div>
+                                <div class="instruction-item">点击虚线框或拖拽图片到上方区域上传</div>
+                                <div class="instruction-item">点击"开始检测"按钮进行钢材缺陷检测</div>
+                                <div class="instruction-item">检测完成后可切换至"AI侧栏"模式获取智能分析</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 右侧面板: 控制面板、检测参数、AI分析报告、红框缺陷 -->
+            <aside class="right-sidebar">
+                <div class="sidebar-content">
+                <!-- 控制面板卡片 -->
+                <div class="panel control-panel-card">
+                    <div class="card-title">控制面板</div>
+                    
+                    <!-- 检测模式 -->
+                    <div class="mode-selection-section">
+                        <div class="mode-section-title">检测模式</div>
+                        <div class="mode-tabs-container">
+                            <!-- 滑动胶囊背景 -->
+                            <div class="mode-tabs-slider" id="modeTabsSlider"></div>
+                            <!-- 三个模式按钮 -->
+                            <div class="mode-tab" data-mode="image" onclick="selectMode('image')">
+                                <span class="mode-tab-label">导入图片</span>
+                            </div>
+                            <div class="mode-tab" data-mode="local" onclick="selectMode('local')">
+                                <span class="mode-tab-label">本地摄像头</span>
+                            </div>
+                            <div class="mode-tab" data-mode="ip" onclick="selectMode('ip')">
+                                <span class="mode-tab-label">IP摄像头</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 模型选择 -->
+                    <div class="model-selection-section">
+                        <div class="model-section-title">模型选择</div>
+                        <div class="custom-select" id="modelSelectWrapper">
+                            <div class="custom-select-trigger" onclick="toggleModelDropdown()">
+                                <span id="modelSelectText">YOLO</span>
+                                <svg class="custom-select-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="9 6 15 12 9 18"></polyline>
+                                </svg>
+                            </div>
+                            <div class="custom-select-options" id="modelDropdownOptions">
+                                <div class="custom-select-options-inner">
+                                    <div class="custom-option active" data-value="yolo" onclick="selectModel('yolo')">YOLO</div>
+                                    <div class="custom-option" data-value="unet" onclick="selectModel('unet')">UNet（暂未开放）</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 检测参数调节面板 -->
+                <div class="panel params-panel">
+                    <div class="card-title">检测参数</div>
+                    
+                    <!-- 置信度阈值 -->
+                    <div class="param-control">
+                        <div class="param-header">
+                            <label>置信度阈值 (Confidence)</label>
+                            <span class="param-value" id="confValue">0.25</span>
+                        </div>
+                        <div class="slider-wrapper">
+                            <div class="progress-bar" id="confProgressBar"></div>
+                            <input type="range" id="confThreshold" min="0.01" max="0.99" step="0.01" value="0.25" />
+                        </div>
+                        <div class="param-hint">越低检测到越多缺陷，但可能包含误检</div>
+                    </div>
+                    
+                    <!-- IOU阈值 -->
+                    <div class="param-control">
+                        <div class="param-header">
+                            <label>IOU阈值 (NMS)</label>
+                            <span class="param-value" id="iouValue">0.45</span>
+                        </div>
+                        <div class="slider-wrapper">
+                            <div class="progress-bar" id="iouProgressBar"></div>
+                            <input type="range" id="iouThreshold" min="0.01" max="0.99" step="0.01" value="0.45" />
+                        </div>
+                        <div class="param-hint">越高保留更多重叠框，越低过滤更严格</div>
+                    </div>
+                    
+                    <!-- 截图间隔 (仅摄像头模式显示) -->
+                    <div class="param-control hidden-element" id="screenshotIntervalControl">
+                        <div class="param-header">
+                            <label>截图间隔 (秒)</label>
+                            <span class="param-value" id="intervalValue">5</span>
+                        </div>
+                        <div class="slider-wrapper">
+                            <div class="progress-bar" id="intervalProgressBar"></div>
+                            <input type="range" id="screenshotInterval" min="1" max="5" step="1" value="5" />
+                        </div>
+                        <div class="param-hint">摄像头模式下自动截图的时间间隔</div>
+                    </div>
+                </div>
+
+                <!-- 红框缺陷面板 -->
+                <div class="panel">
+                    <div class="card-title">红框缺陷<span class="subtitle">点击缺陷名称切换红框显示</span></div>
+                    <div id="redClassList" class="class-checkbox-list">
+                        <!-- 动态生成复选框列表 -->
+                    </div>
+                    <div class="red-class-status-row">
+                        <span>已选缺陷</span>
+                        <strong><span id="statusRedClassCount">0</span> 个</strong>
+                    </div>
+                    <div class="red-class-btn-row">
+                        <button id="selectAllRedClassesBtn" class="red-class-btn cancel-btn">全选</button>
+                        <button id="clearRedClassesBtn" class="red-class-btn confirm-btn">清空</button>
+                    </div>
+                </div>
+                </div><!-- /.sidebar-content -->
+            </aside>
+        </main>
+        
+        <footer class="app-footer">
+            钢材缺陷检测系统 · Built with YOLO26
+        </footer>
+    </div>
+
+    <!-- 脚本 -->
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    
+    <!-- 分屏模式样式 -->
+    <style>
+        /* AI侧栏按钮激活状态 */
+        #splitViewBtn.active {
+            background: var(--primary) !important;
+            border-color: var(--primary) !important;
+            color: white !important;
+        }
+        
+        #splitViewBtn.active:hover {
+            background: var(--primary-dark) !important;
+            border-color: var(--primary-dark) !important;
+            box-shadow: var(--shadow-lg) !important;
+        }
+        
+        /* 分屏模式动画 - 只对必要的属性做过渡 */
+        #uploadPanel {
+            transition: gap 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* 左侧内容wrapper基础样式 */
+        .split-left-content {
+            width: 100%;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;              /* 【关键修复】wrapper使用flex布局 */
+            flex-direction: column;     /* 【关键修复】子元素纵向排列 */
+        }
+        
+        /* 【关键修复】分屏动画期间，禁用子元素的transition避免抽搐 */
+        .split-left-content * {
+            transition: none !important;
+        }
+        
+        /* 分屏模式下的样式 */
+        .split-view-mode #uploadPanel {
+            display: flex !important;
+            flex-direction: row !important;
+            gap: 0 !important;  /* 禁用gap，由子元素自己处理间距 */
+            padding: 0 !important;  /* 【关键修复】移除padding，由子元素自己处理 */
+            align-items: flex-start !important;  /* 【关键修复】防止子元素高度被拉伸 */
+        }
+        
+        .split-view-mode .split-left-content {
+            width: 45% !important;
+            padding: var(--spacing-md) !important;  /* wrapper自己处理padding */
+            padding-right: calc(var(--spacing-md) + 16px) !important;  /* 右边额外留出间距 */
+            border-right: 1px solid var(--border) !important;
+            align-self: flex-start !important;  /* 【关键修复】wrapper不被拉伸 */
+        }
+        
+        /* AI面板 - 非分屏模式下完全隐藏 */
+        #splitAIAnalysisPanel {
+            display: none;
+        }
+        
+        /* 分屏模式下显示AI面板并做动画 */
+        .split-view-mode #splitAIAnalysisPanel {
+            display: block !important;
+            max-width: 9999px;  /* 足够大的值 */
+            opacity: 1;
+            flex: 1;
+            overflow-y: auto;
+            max-height: calc(100vh - 200px);
+            background: var(--bg-card) !important;
+            border-radius: var(--radius-lg) !important;
+            padding: var(--spacing-md) !important;  /* AI面板四周统一padding */
+            animation: fadeInPanel 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        @keyframes fadeInPanel {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .split-ai-section {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* 分屏模式下的camera-header样式 */
+        .split-view-mode #splitAIAnalysisPanel .camera-header {
+            margin-bottom: 16px;
+        }
+        
+        .split-ai-content {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 16px;
+            line-height: 1.6;
+        }
+        
+        .split-ai-content strong {
+            color: var(--primary);
+            font-weight: 600;
+        }
+        
+        .btn.icon-btn {
+            padding: 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .btn.icon-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .btn.icon-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+    </style>
+    
+    <!-- 检测参数调节和图片检测相关脚本 -->
+    <script>
+        // ==================== 检测参数调节 ====================
+        const confThresholdSlider = document.getElementById('confThreshold');
+        const iouThresholdSlider = document.getElementById('iouThreshold');
+        const confValueDisplay = document.getElementById('confValue');
+        const iouValueDisplay = document.getElementById('iouValue');
+        const confProgressBar = document.getElementById('confProgressBar');
+        const iouProgressBar = document.getElementById('iouProgressBar');
+
+        // 加载初始参数
+        async function loadDetectionParams() {
+            try {
+                const res = await fetch('/get_detection_params');
+                const data = await res.json();
+                
+                if (data.conf_threshold) {
+                    confThresholdSlider.value = data.conf_threshold;
+                    confValueDisplay.textContent = data.conf_threshold.toFixed(2);
+                    updateSliderProgress(confThresholdSlider, confProgressBar);
+                }
+                
+                if (data.iou_threshold) {
+                    iouThresholdSlider.value = data.iou_threshold;
+                    iouValueDisplay.textContent = data.iou_threshold.toFixed(2);
+                    updateSliderProgress(iouThresholdSlider, iouProgressBar);
+                }
+            } catch (err) {
+                console.error('加载检测参数失败:', err);
+            }
+        }
+
+        // 置信度阈值变化
+        confThresholdSlider.addEventListener('input', async (e) => {
+            const value = parseFloat(e.target.value);
+            confValueDisplay.textContent = value.toFixed(2);
+            
+            // 更新滑块进度条颜色
+            updateSliderProgress(confThresholdSlider, confProgressBar);
+            
+            try {
+                await fetch('/set_conf_threshold', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ conf_threshold: value })
+                });
+            } catch (err) {
+                console.error('设置置信度阈值失败:', err);
+            }
+        });
+
+        // IOU阈值变化
+        iouThresholdSlider.addEventListener('input', async (e) => {
+            const value = parseFloat(e.target.value);
+            iouValueDisplay.textContent = value.toFixed(2);
+            
+            // 更新滑块进度条颜色
+            updateSliderProgress(iouThresholdSlider, iouProgressBar);
+            
+            try {
+                await fetch('/set_iou_threshold', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ iou_threshold: value })
+                });
+            } catch (err) {
+                console.error('设置IOU阈值失败:', err);
+            }
+        });
+        
+        // 新增: 截图间隔滑块
+        const screenshotIntervalSlider = document.getElementById('screenshotInterval');
+        const intervalValueDisplay = document.getElementById('intervalValue');
+        const intervalProgressBar = document.getElementById('intervalProgressBar');
+        
+        // 加载初始截图间隔
+        async function loadScreenshotInterval() {
+            try {
+                const res = await fetch('/get_screenshot_interval');
+                const data = await res.json();
+                
+                if (data.interval !== undefined) {
+                    screenshotIntervalSlider.value = data.interval;
+                    intervalValueDisplay.textContent = data.interval;
+                    updateSliderProgress(screenshotIntervalSlider, intervalProgressBar);
+                }
+            } catch (err) {
+                console.error('加载截图间隔失败:', err);
+            }
+        }
+        
+        // 截图间隔变化
+        screenshotIntervalSlider.addEventListener('input', async (e) => {
+            const value = parseInt(e.target.value);
+            intervalValueDisplay.textContent = value;
+            
+            // 更新滑块进度条颜色
+            updateSliderProgress(screenshotIntervalSlider, intervalProgressBar);
+            
+            try {
+                await fetch('/set_screenshot_interval', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ interval: value })
+                });
+            } catch (err) {
+                console.error('设置截图间隔失败:', err);
+            }
+        });
+
+        // 更新滑块进度条颜色的函数
+        function updateSliderProgress(slider, progressBar) {
+            const min = parseFloat(slider.min) || 0;
+            const max = parseFloat(slider.max) || 100;
+            const value = parseFloat(slider.value);
+            const percentage = (value - min) / (max - min);
+            
+            // 获取slider-wrapper的宽度
+            const wrapperWidth = slider.parentElement.offsetWidth;
+            
+            // 滑块宽度
+            const sliderWidth = 12; // px（与CSS中的滑块直径一致）
+            const gap = 6; // 滑块到蓝色胶囊右边的间距（6px，与四周等距）
+            
+            // input有padding: 0 6px，所以滑块的实际可移动区域是 wrapperWidth - 12px
+            const padding = 6; // 左右各6px（与上下间距一致）
+            const availableWidth = wrapperWidth - (padding * 2); // 可用宽度
+            
+            // 计算滑块中心的x坐标（相对于wrapper左边缘）
+            // 滑块的移动范围：从padding开始，到(wrapperWidth - padding)结束
+            const halfSlider = sliderWidth / 2;
+            const trackWidth = availableWidth - sliderWidth; // 滑块中心可移动的轨道宽度
+            const sliderCenterX = padding + halfSlider + percentage * trackWidth;
+            
+            // 蓝色胶囊右边缘 = 滑块中心 + 半个滑块宽度 + 间距
+            let progressBarWidth = sliderCenterX + halfSlider + gap;
+            
+            // 限制最大宽度不超过wrapper宽度（确保最右端不溢出）
+            if (progressBarWidth > wrapperWidth) {
+                progressBarWidth = wrapperWidth;
+            }
+            
+            // 限制最小宽度为0
+            if (progressBarWidth < 0) {
+                progressBarWidth = 0;
+            }
+            
+            if (progressBar) {
+                progressBar.style.width = Math.round(progressBarWidth) + 'px';
+            }
+        }
+
+        // 初始化滑块进度条
+        function initSliders() {
+            updateSliderProgress(confThresholdSlider, confProgressBar);
+            updateSliderProgress(iouThresholdSlider, iouProgressBar);
+        }
+
+        // 页面加载时获取参数
+        loadDetectionParams().then(() => {
+            // 参数加载完成后初始化滑块进度条
+            setTimeout(initSliders, 100);
+        });
+        
+        // 新增: 加载截图间隔
+        loadScreenshotInterval();
+
+        // 监听窗口大小变化，实时重新计算滑块进度条
+        window.addEventListener('resize', () => {
+            // 直接调用，无延迟
+            updateSliderProgress(confThresholdSlider, confProgressBar);
+            updateSliderProgress(iouThresholdSlider, iouProgressBar);
+        });
+
+        // ==================== 检测模式切换 ====================
+        // 当前选择的检测模式
+        let currentDetectMode = 'image'; // 'image', 'local', 'ip'
+        let localCameraEnabled = false; // 本地摄像头开关状态
+        let currentModel = 'yolo'; // 'yolo' or 'unet'
+        
+        // ==================== 分屏模式 ====================
+        let isSplitViewMode = false;
+        let leftContentWrapper = null;
+        const splitViewBtn = document.getElementById('splitViewBtn');
+        const splitAIAnalysisPanel = document.getElementById('splitAIAnalysisPanel');
+        const splitAIAnalysisSection = document.getElementById('splitAIAnalysisSection');
+        const splitAIAnalysisResult = document.getElementById('splitAIAnalysisResult');
+        const splitAIAnalysisContent = document.getElementById('splitAIAnalysisContent');
+        const splitAIAnalysisLoading = document.getElementById('splitAIAnalysisLoading');
+        const splitNoAnalysis = document.getElementById('splitNoAnalysis');
+        const splitAnalyzeWithLLMBtn = document.getElementById('splitAnalyzeWithLLMBtn');
+        const uploadPanel = document.getElementById('uploadPanel');
+        
+        // 更新滑块位置
+        function updateSliderPosition(mode) {
+            const slider = document.getElementById('modeTabsSlider');
+            const targetTab = document.querySelector(`.mode-tab[data-mode="${mode}"]`);
+            
+            if (targetTab) {
+                const containerRect = document.querySelector('.mode-tabs-container').getBoundingClientRect();
+                const tabRect = targetTab.getBoundingClientRect();
+                
+                const top = tabRect.top - containerRect.top;
+                const height = tabRect.height;
+                
+                slider.style.top = `${top}px`;
+                slider.style.height = `${height}px`;
+                slider.style.width = `calc(100% - 6px)`;
+            }
+        }
+        
+        // 选择检测模式
+        function selectMode(mode) {
+            // 如果从摄像头模式切换到图片模式,先关闭摄像头
+            if (mode === 'image' && (currentDetectMode === 'local' || currentDetectMode === 'ip')) {
+                console.log('[模式切换] 关闭摄像头');
+                // 调用后端API关闭摄像头
+                fetch('/stop_camera', { method: 'POST' })
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log('[摄像头关闭]', data);
+                    })
+                    .catch(err => {
+                        console.error('[摄像头关闭失败]', err);
+                    });
+            }
+            
+            currentDetectMode = mode;
+            
+            // 更新UI - 激活状态
+            document.querySelectorAll('.mode-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`.mode-tab[data-mode="${mode}"]`).classList.add('active');
+            
+            // 移动滑块
+            updateSliderPosition(mode);
+            
+            // 切换到图片模式时关闭本地摄像头
+            if (mode === 'image' && localCameraEnabled) {
+                localCameraEnabled = false;
+                updateLocalCameraSwitch();
+            }
+            
+            // 切换到非本地摄像头模式时关闭摄像头
+            if (mode !== 'local' && localCameraEnabled) {
+                localCameraEnabled = false;
+                updateLocalCameraSwitch();
+                fetch('/stop_camera', { method: 'POST' }).catch(err => console.error(err));
+            }
+            
+            // 根据模式切换显示区域
+            const videoDetectionSection = document.getElementById('videoDetectionSection');
+            const imageDetectionSection = document.getElementById('imageDetectionSection');
+            
+            // 新增: 控制截图间隔滑块的显示/隐藏
+            const screenshotIntervalControl = document.getElementById('screenshotIntervalControl');
+            if (mode === 'local' || mode === 'ip') {
+                screenshotIntervalControl.style.display = 'block';
+                // 强制重新渲染滑块，解决首次显示时位置不正确的问题
+                setTimeout(() => {
+                    updateSliderProgress(screenshotIntervalSlider, intervalProgressBar);
+                }, 10);
+            } else {
+                screenshotIntervalControl.style.display = 'none';
+            }
+            
+            if (mode === 'image') {
+                // 图片检测模式
+                videoDetectionSection.hidden = true;
+                imageDetectionSection.hidden = false;
+                // 显示分屏按钮
+                if (splitViewBtn) {
+                    splitViewBtn.hidden = false;
+                }
+                // 恢复分屏状态(如果之前是分屏模式)
+                if (isSplitViewMode) {
+                    document.body.classList.add('split-view-mode');
+                    splitViewBtn.classList.add('active');
+                    splitViewBtn.title = '退出分屏模式';
+                    
+                    // 重新创建左侧内容wrapper
+                    if (!leftContentWrapper) {
+                        leftContentWrapper = document.createElement('div');
+                        leftContentWrapper.className = 'split-left-content';
+                        
+                        // 将所有非splitAIAnalysisPanel的子元素移动到wrapper中
+                        const children = Array.from(uploadPanel.children);
+                        children.forEach(child => {
+                            if (child.id !== 'splitAIAnalysisPanel') {
+                                leftContentWrapper.appendChild(child);
+                            }
+                        });
+                        
+                        // 将wrapper添加到uploadPanel
+                        uploadPanel.insertBefore(leftContentWrapper, splitAIAnalysisPanel);
+                    }
+                    
+                    // 同步右侧面板的状态
+                    syncSplitPanelState();
+                }
+            } else if (mode === 'local') {
+                // 本地摄像头模式
+                videoDetectionSection.hidden = false;
+                imageDetectionSection.hidden = true;
+                // 隐藏分屏按钮(但不改变isSplitViewMode状态)
+                if (splitViewBtn) {
+                    splitViewBtn.hidden = true;
+                }
+                // 如果当前是分屏模式,移除CSS类但保留状态
+                if (isSplitViewMode) {
+                    document.body.classList.remove('split-view-mode');
+                    splitViewBtn.classList.remove('active');
+                }
+                // 设置摄像头为本地
+                document.getElementById('cameraSelect').value = 'local';
+                // 如果本地摄像头开关是开启状态,触发摄像头变化事件
+                if (localCameraEnabled && typeof cameraSelect !== 'undefined' && cameraSelect.dispatchEvent) {
+                    cameraSelect.dispatchEvent(new Event('change'));
+                }
+            } else if (mode === 'ip') {
+                // IP摄像头模式
+                videoDetectionSection.hidden = false;
+                imageDetectionSection.hidden = true;
+                // 隐藏分屏按钮(但不改变isSplitViewMode状态)
+                if (splitViewBtn) {
+                    splitViewBtn.hidden = true;
+                }
+                // 如果当前是分屏模式,移除CSS类但保留状态
+                if (isSplitViewMode) {
+                    document.body.classList.remove('split-view-mode');
+                    splitViewBtn.classList.remove('active');
+                }
+                // 设置摄像头为IP
+                document.getElementById('cameraSelect').value = 'ip';
+                // 触发摄像头变化事件
+                if (typeof cameraSelect !== 'undefined' && cameraSelect.dispatchEvent) {
+                    cameraSelect.dispatchEvent(new Event('change'));
+                }
+            }
+        }
+        
+        // 更新本地摄像头开关UI
+        function updateLocalCameraSwitch() {
+            const switchTrack = document.querySelector('.switch-track');
+            if (switchTrack) {
+                if (localCameraEnabled) {
+                    switchTrack.classList.add('active');
+                } else {
+                    switchTrack.classList.remove('active');
+                }
+            }
+        }
+        
+        // 切换本地摄像头开关
+        function toggleLocalCamera() {
+            // 只有在本地摄像头模式下才能开关
+            if (currentDetectMode !== 'local') {
+                return;
+            }
+            
+            localCameraEnabled = !localCameraEnabled;
+            updateLocalCameraSwitch();
+            
+            if (localCameraEnabled) {
+                // 开启摄像头
+                console.log('[本地摄像头] 开启');
+                if (typeof cameraSelect !== 'undefined' && cameraSelect.dispatchEvent) {
+                    cameraSelect.dispatchEvent(new Event('change'));
+                }
+            } else {
+                // 关闭摄像头
+                console.log('[本地摄像头] 关闭');
+                fetch('/stop_camera', { method: 'POST' })
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log('[摄像头关闭]', data);
+                    })
+                    .catch(err => {
+                        console.error('[摄像头关闭失败]', err);
+                    });
+            }
+        }
+        
+        // 切换模型
+        function changeModel() {
+            const modelSelect = document.getElementById('modelSelect');
+            currentModel = modelSelect.value;
+            
+            // 这里可以添加切换模型的后端调用
+            console.log('切换模型到:', currentModel);
+            
+            // TODO: 调用后端API切换模型
+            // await fetch('/set_model', {
+            //     method: 'POST',
+            //     headers: { 'Content-Type': 'application/json' },
+            //     body: JSON.stringify({ model: currentModel })
+            // });
+        }
+        
+        // 自定义下拉框交互
+        let isModelDropdownOpen = false;
+        
+        // 切换下拉框显示/隐藏
+        function toggleModelDropdown() {
+            const wrapper = document.getElementById('modelSelectWrapper');
+            const trigger = wrapper.querySelector('.custom-select-trigger');
+            const options = document.getElementById('modelDropdownOptions');
+            
+            isModelDropdownOpen = !isModelDropdownOpen;
+            
+            if (isModelDropdownOpen) {
+                trigger.classList.add('open');
+                options.classList.add('open');
+            } else {
+                trigger.classList.remove('open');
+                options.classList.remove('open');
+            }
+        }
+        
+        // 选择模型
+        function selectModel(model) {
+            currentModel = model;
+            
+            // 更新显示文字
+            const textElement = document.getElementById('modelSelectText');
+            textElement.textContent = model === 'yolo' ? 'YOLO' : 'UNet';
+            
+            // 更新active状态
+            document.querySelectorAll('.custom-option').forEach(option => {
+                option.classList.remove('active');
+            });
+            document.querySelector(`.custom-option[data-value="${model}"]`).classList.add('active');
+            
+            // 关闭下拉框
+            toggleModelDropdown();
+            
+            console.log('切换模型到:', currentModel);
+            
+            // TODO: 调用后端API切换模型
+        }
+        
+        // 点击其他地方关闭下拉框
+        document.addEventListener('click', (e) => {
+            const wrapper = document.getElementById('modelSelectWrapper');
+            if (wrapper && !wrapper.contains(e.target) && isModelDropdownOpen) {
+                toggleModelDropdown();
+            }
+        });
+        
+        // 页面加载时初始化默认选择
+        window.addEventListener('DOMContentLoaded', () => {
+            selectMode('image'); // 默认选择图片模式
+            // 模型选择已经在HTML中设置为默认YOLO
+            // 初始化滑块位置
+            setTimeout(() => {
+                updateSliderPosition('image');
+            }, 100);
+        });
+
+        // 面板折叠功能
+        function togglePanel(panelId) {
+            const panel = document.getElementById(panelId);
+            
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        // 图片检测相关变量
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const detectBtn = document.getElementById('detectBtn');
+        const loading = document.getElementById('loading');
+        const statusText = document.getElementById('statusText');
+        const resultContent = document.getElementById('resultContent');
+        const imagesContainer = document.getElementById('imagesContainer');
+        const originalImageDisplay = document.getElementById('originalImageDisplay');
+        const clearImageBtn = document.getElementById('clearImageBtn');
+        const annotatedImageWrapper = document.getElementById('annotatedImageWrapper');
+        const annotatedImageDisplay = document.getElementById('annotatedImageDisplay');
+        const heatmapImageWrapper = document.getElementById('heatmapImageWrapper');
+        const heatmapImageDisplay = document.getElementById('heatmapImageDisplay');
+        const detectionDataSection = document.getElementById('detectionDataSection');
+        const analyzeWithLLMBtn = document.getElementById('analyzeWithLLMBtn');
+        const aiAnalysisSection = document.getElementById('aiAnalysisSection');
+        const aiAnalysisResult = document.getElementById('aiAnalysisResult');
+        const aiAnalysisLoading = document.getElementById('aiAnalysisLoading');
+        const aiAnalysisContent = document.getElementById('aiAnalysisContent');
+        const closeAIResult = document.getElementById('closeAIResult');
+        const uploadInstructions = document.getElementById('uploadInstructions');
+
+        let selectedFile = null;
+        let lastResult = null;
+        let uploadedFiles = []; // 存储上传的多张图片
+        let currentImageIndex = 0; // 当前查看的图片索引
+        let detectionResults = {}; // 存储每张图片的检测结果
+
+        // 显示原图
+        function showOriginalImage(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                originalImageDisplay.src = e.target.result;
+                imagesContainer.hidden = false;
+                uploadZone.hidden = true;  // 隐藏虚线框
+                // 保留使用说明卡片，不隐藏
+                detectBtn.hidden = false;
+                // 注意：不在这里隐藏标注图和检测数据，由调用者控制
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 清除图片
+        function clearImage() {
+            selectedFile = null;
+            lastResult = null;
+            uploadedFiles = [];
+            currentImageIndex = 0;
+            detectionResults = {};
+            originalImageDisplay.src = '';
+            annotatedImageDisplay.src = '';
+            heatmapImageDisplay.src = '';
+            imagesContainer.hidden = true;
+            uploadZone.hidden = false;  // 重新显示虚线框
+            // 使用说明卡片始终显示，无需操作
+            detectBtn.hidden = true;
+            detectionDataSection.hidden = true;
+            statusText.hidden = true;
+            // aiAnalysisSection 始终显示，不需要隐藏
+            resultContent.innerHTML = '';
+            if (aiAnalysisContent) aiAnalysisContent.innerHTML = '';
+            if (aiAnalysisResult) aiAnalysisResult.style.display = 'none';
+            
+            // 重置图片标签
+            const imageLabel = document.getElementById('imageLabel');
+            if (imageLabel) imageLabel.textContent = '原图';
+            
+            // 清除缓存的AI分析结果
+            sessionStorage.removeItem('aiAnalysisText');
+            
+            showStatus('已清除,请重新上传图片', 'info');
+        }
+
+        clearImageBtn.addEventListener('click', clearImage);
+
+        // 上传事件
+        uploadZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFiles(e.target.files);
+        });
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+        });
+
+        function handleFiles(files) {
+            uploadedFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+            if (uploadedFiles.length === 0) {
+                showStatus('请上传图片文件', 'error');
+                return;
+            }
+            
+            statusText.hidden = true;
+            currentImageIndex = 0;
+            detectionResults = {};
+            
+            // 更新标签显示
+            const imageLabel = document.getElementById('imageLabel');
+            if (imageLabel) {
+                imageLabel.textContent = `已导入 ${uploadedFiles.length} 张图片`;
+            }
+            
+            // 隐藏标注图、热力图和检测数据（首次上传时没有检测结果）
+            annotatedImageWrapper.hidden = true;
+            heatmapImageWrapper.hidden = true;
+            detectionDataSection.hidden = true;
+            
+            // 显示第一张原图
+            showOriginalImage(uploadedFiles[0]);
+            updateNavArrows();
+        }
+
+        function updateNavArrows() {
+            const prevBtn = document.getElementById('prevImageBtn');
+            const nextBtn = document.getElementById('nextImageBtn');
+            // 只要有多张图片，就显示导航箭头
+            if (uploadedFiles.length > 1) {
+                prevBtn.hidden = false;
+                nextBtn.hidden = false;
+            } else {
+                prevBtn.hidden = true;
+                nextBtn.hidden = true;
+            }
+        }
+
+        // 导航箭头事件
+        document.getElementById('prevImageBtn').addEventListener('click', () => {
+            if (currentImageIndex > 0) {
+                currentImageIndex--;
+                showCurrentImage();
+            }
+        });
+
+        document.getElementById('nextImageBtn').addEventListener('click', () => {
+            if (currentImageIndex < uploadedFiles.length - 1) {
+                currentImageIndex++;
+                showCurrentImage();
+            }
+        });
+
+        // 图片标签输入框 - 输入数字跳转功能
+        const imageLabelInput = document.getElementById('imageLabel');
+        if (imageLabelInput) {
+            imageLabelInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const value = imageLabelInput.value.trim();
+                    // 提取数字（支持"图片X"或纯数字格式）
+                    const match = value.match(/\d+/);
+                    if (match) {
+                        const targetIndex = parseInt(match[0]) - 1;
+                        if (targetIndex >= 0 && targetIndex < uploadedFiles.length) {
+                            currentImageIndex = targetIndex;
+                            showCurrentImage();
+                            imageLabelInput.blur(); // 跳转后失去焦点
+                        } else {
+                            showStatus(`图片序号超出范围(1-${uploadedFiles.length})`, 'error');
+                            // 恢复正确的显示
+                            showCurrentImage();
+                        }
+                    } else {
+                        showStatus('请输入有效的图片序号', 'error');
+                        showCurrentImage();
+                    }
+                } else if (e.key === 'Escape') {
+                    // ESC键取消编辑，恢复当前显示
+                    imageLabelInput.blur();
+                    showCurrentImage();
+                }
+            });
+            
+            // 点击时全选文本，方便直接输入
+            imageLabelInput.addEventListener('focus', () => {
+                imageLabelInput.select();
+            });
+        }
+
+        function showCurrentImage() {
+            const file = uploadedFiles[currentImageIndex];
+            const imageLabel = document.getElementById('imageLabel');
+            
+            showOriginalImage(file);
+            
+            // 更新图片标签：检测完成后显示"图片X"并允许输入跳转，否则显示"已导入X张图片"
+            if (imageLabel) {
+                const allDetected = uploadedFiles.every((_, idx) => detectionResults[idx]);
+                if (allDetected && uploadedFiles.length > 1) {
+                    imageLabel.value = `图片${currentImageIndex + 1}`;
+                    imageLabel.readOnly = false;
+                    imageLabel.classList.add('editable');
+                    imageLabel.placeholder = '输入序号跳转';
+                } else if (uploadedFiles.length > 1) {
+                    imageLabel.value = `已导入 ${uploadedFiles.length} 张图片`;
+                    imageLabel.readOnly = true;
+                    imageLabel.classList.remove('editable');
+                } else {
+                    imageLabel.value = '原图';
+                    imageLabel.readOnly = true;
+                    imageLabel.classList.remove('editable');
+                }
+            }
+            
+            // 如果这张图片已经有检测结果，则显示结果
+            if (detectionResults[currentImageIndex]) {
+                const data = detectionResults[currentImageIndex];
+                annotatedImageDisplay.src = `data:image/jpeg;base64,${data.image_base64}`;
+                annotatedImageWrapper.hidden = false;
+                
+                if (data.heatmap_base64) {
+                    heatmapImageDisplay.src = `data:image/jpeg;base64,${data.heatmap_base64}`;
+                    heatmapImageWrapper.hidden = false;
+                }
+                renderResult(data);
+                detectionDataSection.hidden = false;
+            } else {
+                // 没有结果则隐藏标注图和热力图
+                annotatedImageWrapper.hidden = true;
+                heatmapImageWrapper.hidden = true;
+                detectionDataSection.hidden = true;
+            }
+            updateNavArrows();
+        }
+
+        detectBtn.addEventListener('click', async () => {
+            if (uploadedFiles.length === 0) return;
+            
+            loading.classList.add('active');
+            statusText.hidden = true;
+            detectBtn.hidden = true;
+            
+            // 显示进度条
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            progressContainer.hidden = false;
+            
+            for (let i = 0; i < uploadedFiles.length; i++) {
+                const file = uploadedFiles[i];
+                
+                progressText.textContent = `正在检测第 ${i + 1} / ${uploadedFiles.length} 张图片...`;
+                progressFill.style.width = `${((i) / uploadedFiles.length) * 100}%`;
+                
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const res = await fetch('/detect_image', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+
+                    if (!data.success) {
+                        showStatus(`图片 ${i + 1} 检测失败: ${data.error}`, 'error');
+                        continue;
+                    }
+
+                    detectionResults[i] = data;
+                    console.log('[检测结果] ✅ 图片', i + 1, '检测完成, batch_id:', data.batch_id);
+                    
+                    showStatus(`图片 ${i + 1} 检测完成`, 'success');
+                } catch (err) {
+                    showStatus(`图片 ${i + 1} 请求失败: ${err.message}`, 'error');
+                }
+                
+                progressFill.style.width = `${((i + 1) / uploadedFiles.length) * 100}%`;
+            }
+            
+            loading.classList.remove('active');
+            progressContainer.hidden = true;
+            showStatus('所有图片检测完成', 'success');
+            
+            // 重置到第一张图片并显示结果
+            currentImageIndex = 0;
+            showCurrentImage();
+            updateNavArrows();
+        });
+
+        // AI分析功能（仅在元素存在时绑定）
+        if (analyzeWithLLMBtn) {
+            analyzeWithLLMBtn.addEventListener('click', async () => {
+                if (!lastResult || !lastResult.image_base64) {
+                    showStatus('请先进行图片检测', 'error');
+                    return;
+                }
+
+                if (aiAnalysisResult) aiAnalysisResult.style.display = 'block';
+                if (aiAnalysisLoading) aiAnalysisLoading.hidden = false;
+                if (aiAnalysisContent) aiAnalysisContent.innerHTML = '';
+                analyzeWithLLMBtn.disabled = true;
+                analyzeWithLLMBtn.textContent = '分析中...';
+
+                try {
+                    const response = await fetch('/analyze_with_llm', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            image_base64: lastResult.image_base64,
+                            detections: lastResult.detections || [],
+                            model_type: lastResult.model_type || 'yolo',
+                            conf_threshold: parseFloat(confThresholdSlider.value),
+                            iou_threshold: parseFloat(iouThresholdSlider.value),
+                            batch_id: lastResult.batch_id || null  // 传递批次ID
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (!data.success) {
+                        throw new Error(data.error || 'AI分析失败');
+                    }
+
+                    renderAIAnalysis(data.analysis);
+                    showStatus('AI分析完成', 'success');
+                    
+                    // 保存AI分析结果到sessionStorage
+                    sessionStorage.setItem('aiAnalysisText', data.analysis);
+                    
+                    // 如果处于分屏模式，也更新分屏面板
+                    if (isSplitViewMode) {
+                        renderSplitAIAnalysis(data.analysis);
+                    }
+
+                } catch (err) {
+                    if (aiAnalysisContent) {
+                        aiAnalysisContent.innerHTML = `
+                            <div style="color: var(--danger); padding: 20px; text-align: center;">
+                                <div style="font-size: 48px; margin-bottom: 12px;">❌</div>
+                                <div><strong>分析失败</strong></div>
+                                <div style="margin-top: 8px; font-size: 13px;">${err.message}</div>
+                            </div>
+                        `;
+                    }
+                    showStatus('AI分析失败: ' + err.message, 'error');
+                } finally {
+                    if (aiAnalysisLoading) aiAnalysisLoading.hidden = true;
+                    analyzeWithLLMBtn.disabled = false;
+                    analyzeWithLLMBtn.textContent = '开始AI分析';
+                }
+            });
+        }
+
+        if (closeAIResult) {
+            closeAIResult.addEventListener('click', () => {
+                if (aiAnalysisContent) aiAnalysisContent.innerHTML = '';
+                if (aiAnalysisResult) aiAnalysisResult.style.display = 'none';
+            });
+        }
+
+
+        // 渲染AI分析结果
+        function renderAIAnalysis(analysisText) {
+            // 清理AI输出文本
+            let cleanedText = cleanAIOutput(analysisText);
+            
+            // 按段落分割
+            const paragraphs = cleanedText.split('\n').filter(p => p.trim());
+            
+            let html = '';
+            paragraphs.forEach(para => {
+                para = para.trim();
+                
+                // 检测标题（以【】包裹的文本）
+                if (para.startsWith('【') && para.includes('】')) {
+                    const title = para.replace(/【|】/g, '');
+                    html += `<h4>${title}</h4>`;
+                }
+                // 检测 **标题** 格式（Markdown加粗作为标题）
+                else if (/^\*\*.+\*\*$/.test(para)) {
+                    const title = para.replace(/^\*\*|\*\*$/g, '');
+                    html += `<h4 style="color: var(--primary);">${title}</h4>`;
+                }
+                // 检测列表项（以 - 或 • 开头）
+                else if (para.startsWith('- ') || para.startsWith('• ')) {
+                    const content = para.substring(2);
+                    html += `<p>• ${content}</p>`;
+                }
+                // 普通段落
+                else {
+                    html += `<p>${para}</p>`;
+                }
+            });
+            
+            if (aiAnalysisContent) aiAnalysisContent.innerHTML = html;
+        }
+        
+        // 清理AI输出文本的通用函数
+        function cleanAIOutput(text) {
+            if (!text) return '';
+            
+            let lines = text.split('\n');
+            
+            // 1. 清理每一行：去除首尾空格
+            lines = lines.map(line => line.trim());
+            
+            // 2. 处理【标题】格式，转为 **标题** 格式（保留以便后续格式化）
+            lines = lines.map(line => {
+                // 将 【标题】 替换为 **标题**
+                return line.replace(/^【(.+?)】\s*$/, '**$1**');
+            });
+            
+            // 3. 删除行首的横杠或星号列表标记
+            lines = lines.map(line => {
+                return line.replace(/^[\-\*]\s+/, '');
+            });
+            
+            // 4. 过滤掉所有空行
+            let cleanedLines = lines.filter(line => line !== '');
+            
+            let result = cleanedLines.join('\n');
+            
+            // 5. 清理部分 Markdown 格式符号（保留 ** 用于标题识别）
+            // 移除 # 标题标记
+            result = result.replace(/^#+\s+/gm, '');
+            // 移除 > 引用标记
+            result = result.replace(/^>\s+/gm, '');
+            // 移除 --- 分隔线
+            result = result.replace(/^---+$/gm, '');
+            // 移除 ` 代码标记
+            result = result.replace(/`/g, '');
+            
+            return result;
+        }
+
+        function renderResult(data) {
+            let html = '';
+            const dets = data.detections || [];
+            html += `<div style="margin-bottom: 16px;"><strong>检测到 ${dets.length} 个缺陷</strong>`;
+            if (data.image_size) {
+                html += ` <span class="muted">(图片尺寸: ${data.image_size[0]} × ${data.image_size[1]})</span>`;
+            }
+            html += `</div>`;
+
+            if (dets.length > 0) {
+                html += `<table class="det-table">
+                    <thead><tr>
+                        <th>序号</th><th>缺陷类型</th><th>置信度</th><th>位置</th>
+                    </tr></thead><tbody>`;
+
+                dets.forEach((det, i) => {
+                    const confPct = det.confidence != null ? (det.confidence * 100).toFixed(1) : '-';
+                    const barW = det.confidence ? Math.max(4, det.confidence * 80) : 0;
+                    const posInfo = det.bbox ? det.bbox.join(', ') : (det.area != null ? `面积: ${det.area}px²` : '-');
+                    html += `<tr>
+                        <td>${i + 1}</td>
+                        <td>${det.class_name}</td>
+                        <td>${confPct}% <span class="conf-bar" style="width:${barW}px"></span></td>
+                        <td class="muted">${posInfo}</td>
+                    </tr>`;
+                });
+                html += `</tbody></table>`;
+            } else {
+                html += `<div class="muted" style="margin-top: 8px;">未检测到缺陷</div>`;
+            }
+
+            resultContent.innerHTML = html;
+        }
+
+        function showStatus(msg, type) {
+            statusText.textContent = msg;
+            statusText.className = 'status-text ' + type;
+            statusText.hidden = false;
+        }
+        
+        // 恢复之前保存的状态（从检测记录页面返回时）
+        function restorePreviousState() {
+            const savedResult = sessionStorage.getItem('lastResult');
+            console.log('[状态恢复] 检查是否有保存的状态...', savedResult ? '有' : '无');
+            
+            // 恢复分屏状态（无论是否有检测结果）
+            const savedSplitViewMode = sessionStorage.getItem('isSplitViewMode');
+            if (savedSplitViewMode === 'true') {
+                console.log('[状态恢复] 检测到分屏状态，准备恢复...');
+                isSplitViewMode = true;
+                
+                // 直接启用分屏模式（不触发click事件）
+                document.body.classList.add('split-view-mode');
+                if (splitViewBtn && !splitViewBtn.hidden) {
+                    splitViewBtn.classList.add('active');
+                    splitViewBtn.title = '退出分屏模式';
+                }
+                
+                // 创建左侧内容wrapper
+                if (!leftContentWrapper && uploadPanel && splitAIAnalysisPanel) {
+                    console.log('[状态恢复] 创建左侧wrapper');
+                    leftContentWrapper = document.createElement('div');
+                    leftContentWrapper.className = 'split-left-content';
+                    
+                    // 将所有非splitAIAnalysisPanel的子元素移动到wrapper中
+                    const children = Array.from(uploadPanel.children);
+                    children.forEach(child => {
+                        if (child.id !== 'splitAIAnalysisPanel') {
+                            leftContentWrapper.appendChild(child);
+                        }
+                    });
+                    
+                    // 将wrapper添加到uploadPanel
+                    uploadPanel.insertBefore(leftContentWrapper, splitAIAnalysisPanel);
+                }
+                
+                // 同步右侧面板的状态
+                syncSplitPanelState();
+                
+                console.log('[状态恢复] 已恢复分屏模式');
+            }
+            
+            if (savedResult) {
+                try {
+                    lastResult = JSON.parse(savedResult);
+                    console.log('[状态恢复] 已恢复检测结果:', lastResult.batch_id);
+                    
+                    // 恢复标注图片显示
+                    if (lastResult.image_base64) {
+                        console.log('[状态恢复] 恢夏标注图片');
+                        annotatedImageDisplay.src = `data:image/jpeg;base64,${lastResult.image_base64}`;
+                        annotatedImageWrapper.hidden = false;
+                    }
+                    
+                    // 恢复热力图显示
+                    if (lastResult.heatmap_base64) {
+                        console.log('[状态恢复] 恢夏热力图');
+                        heatmapImageDisplay.src = `data:image/jpeg;base64,${lastResult.heatmap_base64}`;
+                        heatmapImageWrapper.hidden = false;
+                    }
+                    
+                    // 恢复原图显示
+                    if (lastResult.original_image_base64) {
+                        console.log('[状态恢复] 恢夏原图');
+                        originalImageDisplay.src = `data:image/jpeg;base64,${lastResult.original_image_base64}`;
+                        imagesContainer.hidden = false;
+                        uploadZone.hidden = true;
+                    }
+                    
+                    // 恢复检测结果表格
+                    console.log('[状态恢复] 恢夏检测结果表格');
+                    renderResult(lastResult);
+                    detectionDataSection.hidden = false;
+                    detectBtn.hidden = true;
+                    // aiAnalysisSection 始终显示，不需要修改
+                    
+                    // 恢复AI分析结果
+                    const savedAIAnalysis = sessionStorage.getItem('aiAnalysisText');
+                    if (savedAIAnalysis) {
+                        console.log('[状态恢复] 恢夏AI分析结果');
+                        renderAIAnalysis(savedAIAnalysis);
+                        if (aiAnalysisResult) aiAnalysisResult.style.display = 'block';
+                        console.log('[状态恢复] 已恢复AI分析结果');
+                    }
+                    
+                    showStatus('已恢复之前的检测结果', 'success');
+                    console.log('[状态恢复] ✅ 状态恢复完成');
+                } catch (err) {
+                    console.error('[状态恢复失败]', err);
+                }
+            } else {
+                // 如果没有检测结果，尝试恢复选中的文件
+                const savedFileName = sessionStorage.getItem('selectedFile_name');
+                const savedOriginalImage = sessionStorage.getItem('originalImage_base64');
+                if (savedFileName && savedOriginalImage) {
+                    console.log('[状态恢复] 恢夏选中文件:', savedFileName);
+                    originalImageDisplay.src = `data:image/jpeg;base64,${savedOriginalImage}`;
+                    imagesContainer.hidden = false;
+                    uploadZone.hidden = true;
+                    detectBtn.hidden = false;
+                    console.log('[状态恢复] ✅ 已恢复选中文件');
+                }
+            }
+            
+            // 恢复左侧滚动位置
+            const savedScrollLeft = sessionStorage.getItem('scrollLeft');
+            if (savedScrollLeft) {
+                setTimeout(() => {
+                    const leftContent = document.getElementById('uploadPanel') || document.querySelector('.split-left-content');
+                    if (leftContent) {
+                        leftContent.scrollTop = parseInt(savedScrollLeft);
+                        console.log('[状态恢复] ✅ 已恢复左侧滚动位置:', savedScrollLeft);
+                    }
+                }, 100);
+            }
+            
+            // 恢复右侧滚动位置（如果在分屏模式）
+            const savedScrollRight = sessionStorage.getItem('scrollRight');
+            if (savedScrollRight && isSplitViewMode) {
+                setTimeout(() => {
+                    const rightContent = document.getElementById('splitAIAnalysisPanel');
+                    if (rightContent) {
+                        rightContent.scrollTop = parseInt(savedScrollRight);
+                        console.log('[状态恢复] ✅ 已恢复右侧滚动位置:', savedScrollRight);
+                    }
+                }, 100);
+            }
+            
+            console.log('[状态恢复] ✅ 状态恢复流程结束');
+        }
+        
+        // 页面加载完成后尝试恢复状态
+        restorePreviousState();
+        
+        // ==================== 摄像头开关控制 ====================
+        let isCameraOperationInProgress = false; // 摄像头操作进行中标志
+        
+        // 切换本地摄像头开关
+        async function toggleLocalCamera() {
+            // 【关键】如果正在操作中，忽略本次点击
+            if (isCameraOperationInProgress) {
+                console.log('[摄像头] 操作进行中，忽略本次点击');
+                return;
+            }
+            
+            const cameraSelect = document.getElementById('cameraSelect');
+            
+            // 设置操作标志
+            isCameraOperationInProgress = true;
+            
+            // 切换下拉框的值
+            if (cameraSelect.value === 'local') {
+                cameraSelect.value = 'none';
+            } else {
+                cameraSelect.value = 'local';
+            }
+            
+            // 【关键】手动触发 change 事件，让监听器更新开关状态
+            const event = new Event('change', { bubbles: true });
+            cameraSelect.dispatchEvent(event);
+            
+            // 触发摄像头切换
+            try {
+                if (typeof window.switchCamera === 'function') {
+                    await window.switchCamera();
+                }
+            } finally {
+                // 【关键】操作完成后释放锁
+                isCameraOperationInProgress = false;
+            }
+        }
+        
+        // ==================== Sidebar高度同步 ====================
+        // 让左右sidebar的高度始终占满可用空间（CSS已设置height: 100%）
+        function syncSidebarHeight() {
+            const leftSidebar = document.querySelector('.left-sidebar');
+            const rightSidebar = document.querySelector('.right-sidebar');
+            
+            // CSS已经设置了height: 100%，这里只需要更新阴影
+            if (leftSidebar && rightSidebar) {
+                // 检查是否需要滚动，并添加/移除阴影
+                updateSidebarShadow(leftSidebar);
+                updateSidebarShadow(rightSidebar);
+            }
+        }
+        
+        // 检查sidebar是否需要滚动，并更新底部内阴影
+        function updateSidebarShadow(sidebar) {
+            if (!sidebar) return;
+            
+            // 检查内容是否超出容器高度（需要滚动）
+            const needsScroll = sidebar.scrollHeight > sidebar.clientHeight;
+            
+            if (needsScroll) {
+                sidebar.classList.add('sidebar-shadow');
+            } else {
+                sidebar.classList.remove('sidebar-shadow');
+            }
+        }
+        
+        // 页面加载时同步高度
+        window.addEventListener('load', syncSidebarHeight);
+        
+        // DOM加载完成后也调用一次（确保初始阴影正确）
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(syncSidebarHeight, 100);
+        });
+        
+        // 窗口大小改变时重新同步
+        window.addEventListener('resize', syncSidebarHeight);
+        
+        // 检测模式切换时也需要同步（视频/图片切换）
+        document.querySelectorAll('.mode-option').forEach(option => {
+            option.addEventListener('click', () => {
+                // 延迟执行，等待DOM更新
+                setTimeout(syncSidebarHeight, 100);
+            });
+        });
+        
+        // 全局变量：记录iframe是否已加载
+        let capturesIframeLoaded = false;
+        
+        // 页面加载完成后，预加载检测记录数据（后台预热缓存）
+        window.addEventListener('load', () => {
+            console.log('[预加载] 页面加载完成，开始预加载检测记录...');
+            
+            // 显示预加载指示器
+            const preloadIndicator = document.getElementById('preloadIndicator');
+            if (preloadIndicator) {
+                preloadIndicator.hidden = false;
+                preloadIndicator.classList.remove('success');
+            }
+            
+            // 延迟500ms后开始预加载，避免影响首页渲染
+            setTimeout(() => {
+                fetch('/captures_data')
+                    .then(response => response.json())
+                    .then(data => {
+                        const recordCount = data.data ? data.data.length : 0;
+                        const cached = data.cached || false;
+                        console.log(`[预加载] ✅ 检测记录预加载完成！记录数: ${recordCount}, 缓存: ${cached}`);
+                        
+                        // 更新指示器为成功状态
+                        if (preloadIndicator) {
+                            preloadIndicator.classList.add('success');
+                            // 2秒后隐藏指示器
+                            setTimeout(() => {
+                                preloadIndicator.hidden = true;
+                            }, 2000);
+                        }
+                    })
+                    .catch(error => {
+                        console.warn('[预加载] ⚠️ 预加载失败（不影响正常使用）:', error);
+                        // 失败时隐藏指示器
+                        if (preloadIndicator) {
+                            preloadIndicator.hidden = true;
+                        }
+                    });
+            }, 500);
+        });
+        
+        // 文件夹按钮点击事件：使用iframe切换检测记录页面
+        document.querySelector('.folder-btn').addEventListener('click', () => {
+            console.log('[iframe切换] 点击了文件夹按钮');
+            
+            // 保存当前状态到sessionStorage
+            if (lastResult) {
+                sessionStorage.setItem('lastResult', JSON.stringify(lastResult));
+                sessionStorage.setItem('selectedFile_name', selectedFile ? selectedFile.name : '');
+                const originalImageSrc = originalImageDisplay.src;
+                if (originalImageSrc && originalImageSrc.startsWith('data:image')) {
+                    sessionStorage.setItem('originalImage_base64', originalImageSrc.split(',')[1]);
+                }
+            } else if (selectedFile) {
+                sessionStorage.setItem('selectedFile_name', selectedFile.name);
+                const originalImageSrc = originalImageDisplay.src;
+                if (originalImageSrc && originalImageSrc.startsWith('data:image')) {
+                    sessionStorage.setItem('originalImage_base64', originalImageSrc.split(',')[1]);
+                }
+            }
+            
+            // 保存分屏状态
+            sessionStorage.setItem('isSplitViewMode', isSplitViewMode);
+            
+            // 保存AI分析结果（如果有）
+            const aiAnalysisText = document.getElementById('splitAIAnalysisContent')?.innerHTML;
+            if (aiAnalysisText && aiAnalysisText.trim()) {
+                sessionStorage.setItem('aiAnalysisText', aiAnalysisText);
+            }
+            
+            // 保存左侧滚动位置
+            const leftContent = document.getElementById('uploadPanel') || document.querySelector('.split-left-content');
+            if (leftContent) {
+                sessionStorage.setItem('scrollLeft', leftContent.scrollTop);
+            }
+            
+            // 保存右侧滚动位置（如果在分屏模式）
+            if (isSplitViewMode) {
+                const rightContent = document.getElementById('splitAIAnalysisPanel');
+                if (rightContent) {
+                    sessionStorage.setItem('scrollRight', rightContent.scrollTop);
+                }
+            }
+            
+            // 显示iframe容器（直接显示，无动画）
+            const iframeContainer = document.getElementById('iframeContainer');
+            const capturesIframe = document.getElementById('capturesIframe');
+            
+            // 如果是第一次加载，设置src
+            if (!capturesIframeLoaded) {
+                capturesIframe.src = '/captures';
+                capturesIframeLoaded = true;
+            }
+            
+            // 直接显示iframe容器
+            iframeContainer.classList.add('active');
+            
+            console.log('[iframe切换] 已显示检测记录页面');
+        });
+        
+        // 监听来自iframe的消息
+        window.addEventListener('message', (event) => {
+            // 验证消息来源
+            if (event.origin !== window.location.origin) return;
+            
+            // 处理返回主页的消息
+            if (event.data && event.data.action === 'navigateToHome') {
+                console.log('[iframe切换] 收到返回主页消息');
+                const iframeContainer = document.getElementById('iframeContainer');
+                
+                // 直接隐藏iframe容器，无动画
+                iframeContainer.classList.remove('active');
+            }
+        });
+        
+        // 分屏按钮点击事件
+        splitViewBtn.addEventListener('click', () => {
+            isSplitViewMode = !isSplitViewMode;
+            
+            // 保存分屏状态到sessionStorage
+            sessionStorage.setItem('isSplitViewMode', isSplitViewMode);
+            
+            if (isSplitViewMode) {
+                // 启用分屏模式
+                splitViewBtn.classList.add('active');
+                splitViewBtn.title = '退出分屏模式';
+                
+                // 创建左侧内容wrapper
+                if (!leftContentWrapper) {
+                    leftContentWrapper = document.createElement('div');
+                    leftContentWrapper.className = 'split-left-content';
+                    
+                    // 将所有非splitAIAnalysisPanel的子元素移动到wrapper中
+                    const children = Array.from(uploadPanel.children);
+                    children.forEach(child => {
+                        if (child.id !== 'splitAIAnalysisPanel') {
+                            leftContentWrapper.appendChild(child);
+                        }
+                    });
+                    
+                    // 将wrapper添加到uploadPanel
+                    uploadPanel.insertBefore(leftContentWrapper, splitAIAnalysisPanel);
+                }
+                
+                // 同步右侧面板的状态
+                syncSplitPanelState();
+                
+                // 【关键修复】使用requestAnimationFrame确保DOM操作完成后立即添加class
+                // 这样浏览器在同一帧内完成DOM更新和CSS应用，避免闪烁
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        document.body.classList.add('split-view-mode');
+                    });
+                });
+            } else {
+                // 退出分屏模式
+                splitViewBtn.classList.remove('active');
+                splitViewBtn.title = '分屏模式';
+                
+                // 先触发动画：移除split-view-mode类
+                document.body.classList.remove('split-view-mode');
+                
+                // 等待动画完成后再恢复原始结构（300ms后）
+                setTimeout(() => {
+                    if (leftContentWrapper) {
+                        const children = Array.from(leftContentWrapper.children);
+                        children.forEach(child => {
+                            uploadPanel.insertBefore(child, splitAIAnalysisPanel);
+                        });
+                        leftContentWrapper.remove();
+                        leftContentWrapper = null;
+                    }
+                }, 300);
+            }
+        });
+        
+        // 同步分屏面板的状态
+        function syncSplitPanelState() {
+            if (!isSplitViewMode) return;
+            
+            // splitAIAnalysisSection 始终显示，不需要根据检测结果控制
+            
+            // 如果已有AI分析结果，显示出来
+            const savedAIAnalysis = sessionStorage.getItem('aiAnalysisText');
+            if (savedAIAnalysis) {
+                renderSplitAIAnalysis(savedAIAnalysis);
+            } else {
+                splitAIAnalysisResult.hidden = true;  // 使用hidden属性而不是display
+                splitNoAnalysis.style.display = 'block';
+            }
+        }
+        
+        // 渲染分屏模式的AI分析结果
+        function renderSplitAIAnalysis(analysisText) {
+            // 清理AI输出文本
+            let cleanedText = cleanAIOutput(analysisText);
+            
+            // 按段落分割
+            const paragraphs = cleanedText.split('\n').filter(p => p.trim());
+            
+            let html = '';
+            paragraphs.forEach(para => {
+                para = para.trim();
+                
+                // 检测标题（以【】包裹的文本）
+                if (para.startsWith('【') && para.includes('】')) {
+                    const title = para.replace(/【|】/g, '');
+                    html += `<h4>${title}</h4>`;
+                }
+                // 检测 **标题** 格式（Markdown加粗作为标题）
+                else if (/^\*\*.+\*\*$/.test(para)) {
+                    const title = para.replace(/^\*\*|\*\*$/g, '');
+                    html += `<h4 style="color: var(--primary);">${title}</h4>`;
+                }
+                // 检测列表项（以 - 或 • 开头）
+                else if (para.startsWith('- ') || para.startsWith('• ')) {
+                    const content = para.substring(2);
+                    html += `<p>• ${content}</p>`;
+                }
+                // 普通段落
+                else {
+                    html += `<p>${para}</p>`;
+                }
+            });
+            
+            splitAIAnalysisContent.innerHTML = html;
+            splitAIAnalysisResult.hidden = false;  // 移除hidden属性而不是设置display
+            splitNoAnalysis.style.display = 'none';
+        }
+        
+        // 分屏模式的AI分析按钮点击事件
+        splitAnalyzeWithLLMBtn.addEventListener('click', async () => {
+            if (!lastResult || !lastResult.image_base64) {
+                showStatus('请先进行图片检测', 'error');
+                return;
+            }
+            
+            splitAIAnalysisResult.hidden = false;  // 移除hidden属性而不是设置display
+            splitAIAnalysisLoading.hidden = false;
+            splitAIAnalysisContent.innerHTML = '';
+            splitNoAnalysis.style.display = 'none';
+            splitAnalyzeWithLLMBtn.disabled = true;
+            splitAnalyzeWithLLMBtn.textContent = '分析中...';
+            
+            try {
+                const response = await fetch('/analyze_with_llm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image_base64: lastResult.image_base64,
+                        detections: lastResult.detections || [],
+                        model_type: lastResult.model_type || 'yolo',
+                        conf_threshold: parseFloat(confThresholdSlider.value),
+                        iou_threshold: parseFloat(iouThresholdSlider.value),
+                        batch_id: lastResult.batch_id || null
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'AI分析失败');
+                }
+                
+                renderSplitAIAnalysis(data.analysis);
+                showStatus('AI分析完成', 'success');
+                
+                // 保存AI分析结果到sessionStorage
+                sessionStorage.setItem('aiAnalysisText', data.analysis);
+                
+                // 也更新右侧面板（如果存在）
+                renderAIAnalysis(data.analysis);
+                if (aiAnalysisResult) aiAnalysisResult.style.display = 'block';
+                
+            } catch (err) {
+                splitAIAnalysisContent.innerHTML = `
+                    <div style="color: var(--error); text-align: center; padding: 20px;">
+                        <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
+                        <div>AI分析失败</div>
+                        <div style="font-size: 12px; margin-top: 8px; color: var(--text-muted);">${err.message}</div>
+                    </div>
+                `;
+                showStatus('AI分析失败: ' + err.message, 'error');
+            } finally {
+                splitAIAnalysisLoading.hidden = true;
+                splitAnalyzeWithLLMBtn.disabled = false;
+                splitAnalyzeWithLLMBtn.textContent = '开始AI分析';
+            }
+        });
+        
+        // 当检测结果更新时，同步分屏面板
+        const originalRenderResult = renderResult;
+        renderResult = function(data) {
+            originalRenderResult(data);
+            if (isSplitViewMode) {
+                syncSplitPanelState();
+            }
+        };
+        
+        // 当清除图片时，也清除分屏面板
+        const originalClearImage = clearImage;
+        clearImage = function() {
+            originalClearImage();
+            if (isSplitViewMode) {
+                // splitAIAnalysisSection 始终显示，不需要隐藏
+                splitAIAnalysisResult.hidden = true;  // 使用hidden属性而不是display
+                splitNoAnalysis.style.display = 'block';
+                splitAIAnalysisContent.innerHTML = '';
+            }
+        };
+        
+        // ==================== 设置面板控制 ====================
+        // 由于设置面板HTML在script之后，需要使用setTimeout确保DOM已加载
+        setTimeout(() => {
+            const settingsBtn = document.querySelector('.settings-btn');
+            const settingsPanel = document.getElementById('settingsPanel');
+            const settingsOverlay = document.getElementById('settingsOverlay');
+            let isSettingsOpen = false;
+            
+            if (!settingsBtn || !settingsPanel || !settingsOverlay) {
+                console.error('[设置面板] 初始化失败：找不到必要的DOM元素');
+                console.log('settingsBtn:', settingsBtn);
+                console.log('settingsPanel:', settingsPanel);
+                console.log('settingsOverlay:', settingsOverlay);
+                return;
+            }
+            
+            console.log('[设置面板] ✅ 初始化成功');
+            
+            // 打开设置面板
+            function openSettings() {
+                isSettingsOpen = true;
+                document.body.classList.add('settings-open'); // 添加页面缩放效果
+                settingsPanel.classList.add('active');
+                settingsOverlay.classList.add('active');
+                settingsBtn.classList.add('active');
+            }
+            
+            // 关闭设置面板
+            function closeSettings() {
+                isSettingsOpen = false;
+                document.body.classList.remove('settings-open'); // 移除页面缩放效果
+                settingsPanel.classList.remove('active');
+                settingsOverlay.classList.remove('active');
+                settingsBtn.classList.remove('active');
+            }
+            
+            // 切换设置面板
+            settingsBtn.addEventListener('click', () => {
+                if (isSettingsOpen) {
+                    closeSettings();
+                } else {
+                    openSettings();
+                }
+            });
+            
+            // 点击遮罩层关闭设置面板
+            settingsOverlay.addEventListener('click', () => {
+                closeSettings();
+            });
+            
+            // ESC键关闭设置面板
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && isSettingsOpen) {
+                    closeSettings();
+                }
+            });
+            
+            // ==================== 动画程序全局控制 ====================
+            const ANIMATION_ENABLED_KEY = 'animation_enabled';
+            const animationToggle = document.getElementById('animationToggle');
+            
+            if (animationToggle) {
+                // 从 localStorage 读取动画状态，默认为 true（开启）
+                const isAnimationEnabled = localStorage.getItem(ANIMATION_ENABLED_KEY) !== 'false';
+                animationToggle.checked = isAnimationEnabled;
+                
+                // 根据动画状态更新 body 类
+                updateAnimationState(isAnimationEnabled);
+                
+                // 监听动画开关变化
+                animationToggle.addEventListener('change', (e) => {
+                    const enabled = e.target.checked;
+                    localStorage.setItem(ANIMATION_ENABLED_KEY, enabled);
+                    updateAnimationState(enabled);
+                    console.log('[动画程序]', enabled ? '✅ 已开启' : '❌ 已关闭');
+                });
+                
+                console.log('[动画程序] 初始状态:', isAnimationEnabled ? '开启' : '关闭');
+            }
+            
+            // 更新动画状态的函数
+            function updateAnimationState(enabled) {
+                if (enabled) {
+                    document.body.classList.remove('no-animations');
+                } else {
+                    document.body.classList.add('no-animations');
+                }
+            }
+            
+            // ==================== 高对比度文字全局控制 ====================
+            const HIGH_CONTRAST_KEY = 'high_contrast_text';
+            const highContrastToggle = document.getElementById('highContrastToggle');
+            
+            if (highContrastToggle) {
+                // 从 localStorage 读取高对比度状态，默认为 false（关闭）
+                const isHighContrastEnabled = localStorage.getItem(HIGH_CONTRAST_KEY) === 'true';
+                highContrastToggle.checked = isHighContrastEnabled;
+                
+                // 根据高对比度状态更新 body 类
+                updateHighContrastState(isHighContrastEnabled);
+                
+                // 监听高对比度开关变化
+                highContrastToggle.addEventListener('change', (e) => {
+                    const enabled = e.target.checked;
+                    localStorage.setItem(HIGH_CONTRAST_KEY, enabled);
+                    updateHighContrastState(enabled);
+                    console.log('[高对比度文字]', enabled ? '✅ 已开启' : '❌ 已关闭');
+                });
+                
+                console.log('[高对比度文字] 初始状态:', isHighContrastEnabled ? '开启' : '关闭');
+            }
+            
+            // 更新高对比度状态的函数
+            function updateHighContrastState(enabled) {
+                if (enabled) {
+                    document.body.classList.add('high-contrast-text');
+                } else {
+                    document.body.classList.remove('high-contrast-text');
+                }
+            }
+            
+            // ==================== 高斯模糊全局控制 ====================
+            const BLUR_ENABLED_KEY = 'blur_enabled';
+            const blurToggle = document.getElementById('blurToggle');
+            
+            if (blurToggle) {
+                // 从 localStorage 读取高斯模糊状态，默认为 true（开启）
+                const isBlurEnabled = localStorage.getItem(BLUR_ENABLED_KEY) !== 'false';
+                blurToggle.checked = isBlurEnabled;
+                
+                // 根据高斯模糊状态更新 body 类
+                updateBlurState(isBlurEnabled);
+                
+                // 监听高斯模糊开关变化
+                blurToggle.addEventListener('change', (e) => {
+                    const enabled = e.target.checked;
+                    localStorage.setItem(BLUR_ENABLED_KEY, enabled);
+                    updateBlurState(enabled);
+                    console.log('[高斯模糊]', enabled ? '✅ 已开启' : '❌ 已关闭');
+                });
+                
+                console.log('[高斯模糊] 初始状态:', isBlurEnabled ? '开启' : '关闭');
+            }
+            
+            // 更新高斯模糊状态的函数
+            function updateBlurState(enabled) {
+                if (enabled) {
+                    document.body.classList.remove('no-blur');
+                } else {
+                    document.body.classList.add('no-blur');
+                }
+            }
+        }, 0);
+    </script>
+    
+    <!-- IP地址输入弹窗 -->
+    <div id="ipAddressModal" class="modal" onclick="handleIPModalClick(event)">
+        <div class="ip-modal-content">
+            <div class="ip-modal-title">输入地址</div>
+            <div class="ip-modal-input-wrapper">
+                <input type="text" id="ipAddressInput" class="ip-modal-input" placeholder="示例地址: 192.168.1.100:8080" />
+                <div id="ipModalErrorMessage" class="ip-modal-error-message">请输入IP摄像头地址</div>
+            </div>
+            <div class="ip-modal-buttons">
+                <button class="ip-modal-btn cancel-btn" onclick="closeIPModal()">取消</button>
+                <button class="ip-modal-btn confirm-btn" onclick="confirmIPModal()">确定</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 设置面板 -->
+    <div class="settings-overlay" id="settingsOverlay"></div>
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-title">显示设置</div>
+        <div class="settings-card">
+            <!-- 动画效果 -->
+            <div class="setting-item">
+                <div class="setting-label">
+                    <div class="setting-title">动画程序</div>
+                    <div class="setting-description">点击组件时添加动画效果</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="animationToggle">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            
+            <!-- 高对比度文字 -->
+            <div class="setting-item">
+                <div class="setting-label">
+                    <div class="setting-title">高对比度文字</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="highContrastToggle">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            
+            <!-- 高斯模糊 -->
+            <div class="setting-item">
+                <div class="setting-label">
+                    <div class="setting-title">高斯模糊</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="blurToggle">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
