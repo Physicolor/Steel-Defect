@@ -807,6 +807,12 @@ def captures_data():
     print("[DEBUG] 开始加载检测记录数据...")
     start_time = time_module.time()
     
+    # 获取筛选参数
+    filter_type = request.args.get('filter_type', 'defect_type')  # defect_type, confidence, source_type
+    cls_filter = request.args.get('cls', 'all')  # 具体的筛选值
+    
+    print(f"[DEBUG] 筛选类型: {filter_type}, 筛选值: {cls_filter}")
+    
     # 检查缓存是否有效
     current_time = time_module.time()
     with state.cache_lock:
@@ -821,8 +827,88 @@ def captures_data():
                                   len(glob.glob(os.path.join(Config.CAPTURE_DIR, '*.json')))
             if cached_file_count == capture_files_count:
                 print(f"[DEBUG] 使用缓存数据 ({cached_file_count} 个文件), 耗时: {time_module.time() - start_time:.3f}s")
+                
+                # 即使使用缓存，也要应用筛选逻辑
+                result = state.captures_cache['data']
+                if cls_filter and cls_filter != 'all':
+                    print(f"[DEBUG] 应用筛选: filter_type={filter_type}, cls_filter={cls_filter}")
+                    filtered_result = []
+                    
+                    for batch in result:
+                        if filter_type == 'defect_type':
+                            # 缺陷类型筛选
+                            has_defect = False
+                            if batch.get('defects'):
+                                has_defect = any(defect.get('class_name') == cls_filter for defect in batch['defects'])
+                            if not has_defect and batch.get('crops'):
+                                has_defect = any(crop.get('class_name') == cls_filter for crop in batch['crops'])
+                            if has_defect:
+                                filtered_result.append(batch)
+                                
+                        elif filter_type == 'confidence':
+                            # 置信度区间筛选
+                            if not batch.get('defects'):
+                                if len(filtered_result) < 3:  # 只打印前3个批次的信息
+                                    print(f"[DEBUG] 批次 {batch.get('batch_id')} 没有defects字段，跳过")
+                                continue
+                            
+                            # 解析置信度区间 (例如 "40-60" -> 40-60)
+                            try:
+                                min_conf, max_conf = [float(v) for v in cls_filter.split('-')]
+                                if len(filtered_result) < 3:  # 只打印前3个批次的详细信息
+                                    print(f"[DEBUG] 置信度筛选: 区间={min_conf}-{max_conf}, 批次={batch.get('batch_id')}, 缺陷数量={len(batch['defects'])}")
+                                
+                                has_defect = False
+                                for idx, defect in enumerate(batch['defects']):
+                                    conf = defect.get('confidence', 0) or 0
+                                    # 如果置信度是小数形式（0-1），转换为百分比（0-100）
+                                    if conf <= 1.0:
+                                        conf = conf * 100
+                                    if len(filtered_result) < 3 and idx < 3:  # 只打印前3个缺陷
+                                        if len(filtered_result) < 3:
+                                            print(f"[DEBUG]   缺陷{idx}: confidence={conf:.2f}%, 类名={defect.get('class_name')}")
+                                    if min_conf <= conf < max_conf:
+                                        has_defect = True
+                                        if len(filtered_result) < 3:
+                                            print(f"[DEBUG]   ✓ 缺陷{idx} 匹配置信度区间 {min_conf}-{max_conf}%")
+                                        break
+                                
+                                if has_defect:
+                                    filtered_result.append(batch)
+                                    if len(filtered_result) <= 3:
+                                        print(f"[DEBUG] ✓ 批次 {batch.get('batch_id')} 匹配置信度区间")
+                                else:
+                                    if len(filtered_result) < 3:
+                                        print(f"[DEBUG] ✗ 批次 {batch.get('batch_id')} 未匹配")
+                            except Exception as e:
+                                print(f"[DEBUG] 置信度解析失败: {e}")
+                                
+                        elif filter_type == 'defect_count':
+                            # 缺陷个数筛选
+                            defect_count = 0
+                            if batch.get('defects'):
+                                defect_count = len(batch['defects'])
+                            elif batch.get('crops'):
+                                defect_count = len(batch['crops'])
+                            
+                            try:
+                                target_count = int(cls_filter)
+                                if defect_count == target_count:
+                                    filtered_result.append(batch)
+                            except Exception as e:
+                                print(f"[DEBUG] 缺陷个数解析失败: {e}")
+                                
+                        elif filter_type == 'source_type':
+                            # 导入类型筛选
+                            source_type = batch.get('source_type', 'legacy')
+                            if source_type == cls_filter:
+                                filtered_result.append(batch)
+                    
+                    result = filtered_result
+                    print(f"[DEBUG] 筛选后剩余 {len(result)} 条记录")
+                
                 return jsonify({
-                    'data': state.captures_cache['data'],
+                    'data': result,
                     'date_range': state.captures_cache['date_range'],
                     'cached': True
                 })
@@ -906,7 +992,7 @@ def captures_data():
             timestamp_part = camera_match.group(2)
             ms_part = camera_match.group(3)  # 毫秒部分，不使用
             frame_index = int(camera_match.group(4))  # 帧索引
-            image_type = camera_match.group(5).replace('.jpg', '')  # 图片类型
+            image_type = camera_match.group(5).replace('.jpg', '').replace('.json', '')  # 图片类型
             batch_id = f"{source_prefix}_{timestamp_part}_{frame_index:03d}"
             session_id = f"{source_prefix}_{timestamp_part}"
             timestamp_str = timestamp_part
@@ -1001,7 +1087,7 @@ def captures_data():
             if image_match:
                 # 图片模式
                 timestamp_part = image_match.group(2)
-                image_type = image_match.group(3).replace('.jpg', '')
+                image_type = image_match.group(3).replace('.jpg', '').replace('.json', '')
                 batch_id = f"image_batch_{timestamp_part}"
                 timestamp_str = timestamp_part
                 
@@ -1081,7 +1167,7 @@ def captures_data():
                 if new_batch_match:
                     defect_name = new_batch_match.group(1)
                     timestamp_part = new_batch_match.group(2)
-                    image_type = new_batch_match.group(3).replace('.jpg', '')
+                    image_type = new_batch_match.group(3).replace('.jpg', '').replace('.json', '')
                     batch_id = f"batch_{defect_name}_{timestamp_part}"
                     timestamp_str = timestamp_part
                 else:
@@ -1091,7 +1177,7 @@ def captures_data():
                         continue
                     
                     batch_id = f"batch_{match.group(1)}"
-                    image_type = match.group(2).replace('.jpg', '')
+                    image_type = match.group(2).replace('.jpg', '').replace('.json', '')
                     timestamp_str = match.group(1)
             
             # 从文件名中提取时间戳（更快的方式）
@@ -1251,6 +1337,81 @@ def captures_data():
     
     total_time = time_module.time() - start_time
     print(f"[DEBUG] 数据加载完成，共 {len(result)} 条记录，耗时: {total_time:.3f}s")
+    
+    # 应用筛选逻辑（如果需要）
+    if cls_filter and cls_filter != 'all':
+        print(f"[DEBUG] 应用筛选: filter_type={filter_type}, cls_filter={cls_filter}")
+        filtered_result = []
+        
+        for batch in result:
+            if filter_type == 'defect_type':
+                # 缺陷类型筛选
+                has_defect = False
+                if batch.get('defects'):
+                    has_defect = any(defect.get('class_name') == cls_filter for defect in batch['defects'])
+                if not has_defect and batch.get('crops'):
+                    has_defect = any(crop.get('class_name') == cls_filter for crop in batch['crops'])
+                if has_defect:
+                    filtered_result.append(batch)
+                    
+            elif filter_type == 'confidence':
+                # 置信度区间筛选
+                if not batch.get('defects'):
+                    print(f"[DEBUG] 批次 {batch.get('batch_id')} 没有defects字段，跳过")
+                    continue
+                
+                # 解析置信度区间 (例如 "40-60" -> 40-60)
+                try:
+                    min_conf, max_conf = [float(v) for v in cls_filter.split('-')]
+                    print(f"[DEBUG] 置信度筛选: 区间={min_conf}-{max_conf}, 批次={batch.get('batch_id')}, 缺陷数量={len(batch['defects'])}")
+                    
+                    has_defect = False
+                    for idx, defect in enumerate(batch['defects']):
+                        conf = defect.get('confidence', 0) or 0
+                        # 如果置信度是小数形式（0-1），转换为百分比（0-100）
+                        if conf <= 1.0:
+                            conf = conf * 100
+                        if idx < 3:  # 只打印前3个缺陷的置信度
+                            print(f"[DEBUG]   缺陷{idx}: confidence={conf:.2f}%, 类名={defect.get('class_name')}")
+                        if min_conf <= conf < max_conf:
+                            has_defect = True
+                            print(f"[DEBUG]   ✓ 缺陷{idx} 匹配置信度区间 {min_conf}-{max_conf}%")
+                            break
+                    
+                    if has_defect:
+                        filtered_result.append(batch)
+                        print(f"[DEBUG] ✓ 批次 {batch.get('batch_id')} 匹配置信度区间")
+                    else:
+                        print(f"[DEBUG] ✗ 批次 {batch.get('batch_id')} 未匹配")
+                except Exception as e:
+                    print(f"[DEBUG] 置信度解析失败: {e}")
+                    
+            elif filter_type == 'defect_count':
+                # 缺陷个数筛选
+                defect_count = 0
+                if batch.get('defects'):
+                    defect_count = len(batch['defects'])
+                elif batch.get('crops'):
+                    defect_count = len(batch['crops'])
+                
+                try:
+                    target_count = int(cls_filter)
+                    if defect_count == target_count:
+                        filtered_result.append(batch)
+                        print(f"[DEBUG] ✓ 批次 {batch.get('batch_id')} 匹配缺陷个数 {target_count}")
+                    else:
+                        print(f"[DEBUG] ✗ 批次 {batch.get('batch_id')} 缺陷个数不匹配 (实际:{defect_count}, 目标:{target_count})")
+                except Exception as e:
+                    print(f"[DEBUG] 缺陷个数解析失败: {e}")
+                    
+            elif filter_type == 'source_type':
+                # 导入类型筛选
+                source_type = batch.get('source_type', 'legacy')
+                if source_type == cls_filter:
+                    filtered_result.append(batch)
+        
+        result = filtered_result
+        print(f"[DEBUG] 筛选后剩余 {len(result)} 条记录")
     
     # 返回数据和日期范围
     return jsonify({
@@ -2157,6 +2318,9 @@ def analyze_defect_data():
         # 获取缺陷统计数据
         defect_stats = data.get('defect_stats', {})
         daily_stats = data.get('daily_stats', {})
+        damage_ratio = data.get('damage_ratio', {})  # 损伤占比数据
+        confidence_distribution = data.get('confidence_distribution', [])  # 置信分布数据
+        total_defects = data.get('total_defects', 0)  # 总缺陷数
         custom_prompt = data.get('prompt', None)  # 可选的自定义提示词
         
         if not defect_stats and not daily_stats:
@@ -2165,11 +2329,17 @@ def analyze_defect_data():
         print(f"[AI分析] 开始分析缺陷数据...")
         print(f"  - 缺陷类型数: {len(defect_stats)}")
         print(f"  - 统计天数: {len(daily_stats)}")
+        print(f"  - 损伤占比类型数: {len(damage_ratio)}")
+        print(f"  - 置信分布区间数: {len(confidence_distribution)}")
+        print(f"  - 总缺陷数: {total_defects}")
         
         # 调用Spark Lite API
         result = spark_lite_service.analyze_defect_data(
             defect_stats=defect_stats,
             daily_stats=daily_stats,
+            damage_ratio=damage_ratio,
+            confidence_distribution=confidence_distribution,
+            total_defects=total_defects,
             prompt=custom_prompt,
             timeout=90
         )

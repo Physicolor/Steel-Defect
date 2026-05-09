@@ -82,13 +82,17 @@ class SparkLiteService:
         return url
 
     def analyze_defect_data(self, defect_stats: Dict, daily_stats: Dict, 
-                           prompt: str = None, timeout: int = 60) -> Dict:
+                           damage_ratio: Dict = None, confidence_distribution: List = None,
+                           total_defects: int = 0, prompt: str = None, timeout: int = 60) -> Dict:
         """
         分析缺陷数据并提供建议
 
         Args:
             defect_stats: 缺陷统计数据 {缺陷类型: 数量}
             daily_stats: 每日统计数据 {日期: {'total': 总数, 'defect': 缺陷数}}
+            damage_ratio: 损伤占比数据 {缺陷类型: {'avg_area_ratio': 平均面积占比, 'total_count': 出现次数}}
+            confidence_distribution: 置信分布数据 [{'range': '区间', 'count': 数量, 'percentage': 百分比}]
+            total_defects: 总缺陷数
             prompt: 自定义提示词（可选）
             timeout: 超时时间（秒）
 
@@ -98,7 +102,8 @@ class SparkLiteService:
         try:
             # 构建默认提示词
             if not prompt:
-                prompt = self._build_default_prompt(defect_stats, daily_stats)
+                prompt = self._build_default_prompt(defect_stats, daily_stats, 
+                                                   damage_ratio, confidence_distribution, total_defects)
 
             # 构建消息
             messages = [
@@ -151,11 +156,13 @@ class SparkLiteService:
                 "model": "Spark Lite"
             }
 
-    def _build_default_prompt(self, defect_stats: Dict, daily_stats: Dict) -> str:
+    def _build_default_prompt(self, defect_stats: Dict, daily_stats: Dict,
+                             damage_ratio: Dict = None, confidence_distribution: List = None,
+                             total_defects: int = 0) -> str:
         """构建默认的分析提示词"""
         
         # 构建缺陷统计描述
-        defect_desc = "缺陷类型统计：\n"
+        defect_desc = "【缺陷类型统计】\n"
         if defect_stats:
             for defect_type, count in sorted(defect_stats.items(), key=lambda x: x[1], reverse=True):
                 defect_desc += f"- {defect_type}: {count}次\n"
@@ -163,7 +170,7 @@ class SparkLiteService:
             defect_desc += "- 暂无缺陷数据\n"
 
         # 构建每日统计描述
-        daily_desc = "\n近期每日检测统计（最近7天）：\n"
+        daily_desc = "\n【近期每日检测统计】（最近7天）\n"
         if daily_stats:
             # 取最近7天
             recent_days = list(daily_stats.items())[-7:]
@@ -174,25 +181,57 @@ class SparkLiteService:
                 daily_desc += f"- {date}: 检测{total}张，缺陷{defect}张，缺陷率{defect_rate:.1f}%\n"
         else:
             daily_desc += "- 暂无统计数据\n"
+        
+        # 构建损伤占比描述
+        damage_desc = "\n【损伤占比分析】（检测框占据整张图片的面积比例）\n"
+        if damage_ratio:
+            for defect_type, stats in sorted(damage_ratio.items(), key=lambda x: x[1]['avg_area_ratio'], reverse=True):
+                avg_ratio = stats.get('avg_area_ratio', 0)
+                count = stats.get('total_count', 0)
+                damage_desc += f"- {defect_type}: 平均面积占比{avg_ratio}%，出现{count}次\n"
+        else:
+            damage_desc += "- 暂无数据\n"
+        
+        # 构建置信分布描述
+        confidence_desc = "\n【置信度分布】（所有缺陷的置信度在五个区间的分布）\n"
+        if confidence_distribution and total_defects > 0:
+            confidence_desc += f"总缺陷数: {total_defects}个\n"
+            for item in confidence_distribution:
+                range_label = item.get('range', '')
+                count = item.get('count', 0)
+                percentage = item.get('percentage', 0)
+                confidence_desc += f"- {range_label}: {count}个 ({percentage}%)\n"
+        else:
+            confidence_desc += "- 暂无数据\n"
 
         prompt = f"""你是钢材质量检测专家。请根据以下检测数据，提供专业的质量分析和改进建议。
 
 {defect_desc}
 {daily_desc}
+{damage_desc}
+{confidence_desc}
 
-请按以下4个部分输出分析报告：
+请按以下5个部分输出分析报告：
 
 【整体质量评估】
 - 综合评估当前钢材质量状况
 - 指出主要质量问题
+- 结合缺陷率和损伤占比进行评价
 
 【缺陷趋势分析】
 - 分析缺陷类型的分布特征
-- 识别高频缺陷类型
+- 识别高频缺陷类型和高损伤占比缺陷
 - 分析缺陷率的变化趋势
+- 结合置信度分布评估检测可靠性
+
+【关键问题诊断】
+- 重点分析高损伤占比的缺陷类型（说明其对产品质量的影响程度）
+- 分析低置信度缺陷的可能原因（是否需要人工复核）
+- 识别需要优先处理的质量问题
 
 【改进建议】
 - 针对主要缺陷类型提出具体改进措施
+- 针对高损伤占比缺陷提出工艺优化建议
 - 生产工艺优化建议
 - 质量控制加强点
 
@@ -200,6 +239,7 @@ class SparkLiteService:
 - 长期预防策略
 - 定期检测建议
 - 人员培训重点
+- 检测设备校准建议
 
 要求：
 - 直接给出分析结果，不要开场白
@@ -207,7 +247,9 @@ class SparkLiteService:
 - 使用专业术语但要易懂
 - 不要使用Markdown标题符号(####、**等)
 - 重点突出关键信息
-- 基于数据给出具体建议"""
+- 基于数据给出具体建议
+- 特别关注高损伤占比的缺陷类型
+- 结合置信度分布评估检测结果的可靠性"""
 
         return prompt
 

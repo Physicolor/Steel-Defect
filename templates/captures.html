@@ -890,14 +890,6 @@
             gap: var(--spacing-xs);
         }
         
-        .info-card h4::before {
-            content: '';
-            width: 3px;
-            height: 14px;
-            background: var(--primary);
-            border-radius: 2px;
-        }
-        
         .info-row {
             display: flex;
             justify-content: space-between;
@@ -1623,16 +1615,18 @@
             const start = qs('#start').value;
             const end = qs('#end').value;
             const cls = qs('#cls').value;
+            const filterType = qs('#filter_type').value;
             const p = new URLSearchParams();
             if (start) p.set('start', start);
             if (end) p.set('end', end);
             if (cls && cls !== 'all') p.set('cls', cls);
+            if (filterType && filterType !== 'defect_type') p.set('filter_type', filterType);
             return p.toString() ? ('/captures_data?' + p.toString()) : '/captures_data';
         }
         
-        // 前端筛选逻辑（根据缺陷类别筛选）
-        function filterByClass(data, className) {
-            console.log('[类别筛选] 筛选条件:', className, '数据总数:', data.length);
+        // 前端筛选逻辑（根据缺陷类别、置信度、导入类型筛选）
+        function filterByClass(data, className, filterType = 'defect_type') {
+            console.log('[类别筛选] 筛选类型:', filterType, '筛选条件:', className, '数据总数:', data.length);
             
             if (!className || className === 'all') {
                 console.log('[类别筛选] 显示全部');
@@ -1640,14 +1634,60 @@
             }
             
             const filtered = data.filter(batch => {
-                // 检查缺陷列表中是否包含指定类别
-                if (batch.defects && batch.defects.length > 0) {
-                    return batch.defects.some(defect => defect.class_name === className);
+                if (filterType === 'defect_type') {
+                    // 检查缺陷列表中是否包含指定类别
+                    if (batch.defects && batch.defects.length > 0) {
+                        return batch.defects.some(defect => defect.class_name === className);
+                    }
+                    // 兼容旧数据：检查crops
+                    if (batch.crops && batch.crops.length > 0) {
+                        return batch.crops.some(crop => crop.class_name === className);
+                    }
+                    return false;
+                    
+                } else if (filterType === 'confidence') {
+                    // 置信度区间筛选
+                    if (!batch.defects || batch.defects.length === 0) {
+                        return false;
+                    }
+                    
+                    // 解析置信度区间
+                    const [minConf, maxConf] = className.split('-').map(v => parseInt(v));
+                    console.log('[置信度筛选] 区间:', minConf, '-', maxConf);
+                    
+                    // 检查是否有缺陷在该置信度区间内
+                    const hasMatch = batch.defects.some(defect => {
+                        let conf = defect.confidence || 0;
+                        // 如果置信度是小数形式（0-1），转换为百分比（0-100）
+                        if (conf <= 1.0) {
+                            conf = conf * 100;
+                        }
+                        console.log('[置信度筛选] 缺陷置信度:', conf);
+                        return conf >= minConf && conf < maxConf;
+                    });
+                    
+                    console.log('[置信度筛选] 是否匹配:', hasMatch);
+                    return hasMatch;
+                    
+                } else if (filterType === 'defect_count') {
+                    // 缺陷个数筛选
+                    let defectCount = 0;
+                    if (batch.defects && batch.defects.length > 0) {
+                        defectCount = batch.defects.length;
+                    } else if (batch.crops && batch.crops.length > 0) {
+                        defectCount = batch.crops.length;
+                    }
+                    
+                    const targetCount = parseInt(className);
+                    console.log('[缺陷个数筛选] 目标个数:', targetCount, '实际个数:', defectCount);
+                    return defectCount === targetCount;
+                    
+                } else if (filterType === 'source_type') {
+                    // 导入类型筛选
+                    const sourceType = batch.source_type || 'legacy';
+                    return sourceType === className;
                 }
-                // 兼容旧数据：检查crops
-                if (batch.crops && batch.crops.length > 0) {
-                    return batch.crops.some(crop => crop.class_name === className);
-                }
+                
                 return false;
             });
             
@@ -1681,14 +1721,17 @@
                 // 先更新类别选项（使用全部数据）
                 updateClassOptions(rawData);
                 
-                // 获取当前选择的类别
+                // 获取当前选择的类别和筛选类型
                 const clsElement = qs('#cls');
+                const filterTypeElement = qs('#filter_type');
                 const selectedClass = clsElement ? clsElement.value : 'all';
+                const filterType = filterTypeElement ? filterTypeElement.value : 'defect_type';
                 console.log('[加载数据] cls元素:', clsElement);
                 console.log('[加载数据] 当前选择的类别:', selectedClass);
+                console.log('[加载数据] 筛选类型:', filterType);
                 
                 // 应用前端筛选
-                allData = filterByClass(rawData, selectedClass);
+                allData = filterByClass(rawData, selectedClass, filterType);
                 console.log('[加载数据] 筛选后数据条数:', allData.length);
                 
                 // 先渲染页面，让用户立即看到内容
@@ -1758,6 +1801,16 @@
         }
         
         function updateClassOptions(data) {
+            // 获取当前筛选类型
+            const filterTypeElement = document.getElementById('filter_type');
+            const currentFilterType = filterTypeElement ? filterTypeElement.value : 'defect_type';
+            
+            // 只有在筛选类型是"缺陷类型"时才更新选项
+            if (currentFilterType !== 'defect_type') {
+                console.log('[更新类别选项] 当前筛选类型不是缺陷类型，跳过更新');
+                return;
+            }
+            
             const clsSelect = qs('#cls');
             const currentValue = clsSelect.value; // 保存当前选择的值
             console.log('[更新类别选项] 保存的currentValue:', currentValue);
@@ -2312,13 +2365,225 @@
             document.getElementById('start').value = '';
             document.getElementById('end').value = '';
             document.getElementById('cls').value = 'all';
+            document.getElementById('filter_type').value = 'defect_type';
+            updateFilterTypeDisplay('defect_type');
             onFilter();
         }
         
+        // 筛选类型切换处理
+        function onFilterTypeChange() {
+            const filterTypeElement = document.getElementById('filter_type');
+            const filterType = filterTypeElement ? filterTypeElement.value : 'defect_type';
+            
+            console.log('[筛选类型] 切换到:', filterType);
+            
+            // 更新显示
+            updateFilterTypeDisplay(filterType);
+            
+            // 根据筛选类型更新第一个下拉框的选项
+            updateFirstSelectOptions(filterType);
+            
+            // 重新筛选
+            onFilter();
+        }
+        
+        function updateFilterTypeDisplay(value) {
+            const trigger = document.getElementById('filter-type-trigger');
+            if (!trigger) return;
+            
+            const span = trigger.querySelector('span');
+            const displayText = {
+                'defect_type': '缺陷类型',
+                'confidence': '置信度区间',
+                'defect_count': '缺陷个数',
+                'source_type': '导入类型'
+            };
+            span.textContent = displayText[value] || value;
+            
+            // 更新active状态
+            const options = document.querySelectorAll('#filter-type-options .custom-option');
+            options.forEach(opt => {
+                if (opt.getAttribute('data-value') === value) {
+                    opt.classList.add('active');
+                } else {
+                    opt.classList.remove('active');
+                }
+            });
+        }
+        
+        function updateFirstSelectOptions(filterType) {
+            console.log('[更新第一个下拉框] 筛选类型:', filterType);
+            const clsSelect = document.getElementById('cls');
+            const optionsContainer = document.getElementById('cls-options');
+            const optionsInner = optionsContainer.querySelector('.custom-select-options-inner');
+            
+            // 清空现有选项
+            optionsInner.innerHTML = '';
+            clsSelect.innerHTML = '';
+            
+            if (filterType === 'defect_type') {
+                // 缺陷类型：显示所有缺陷类别
+                const optionAll = document.createElement('div');
+                optionAll.className = 'custom-option active';
+                optionAll.setAttribute('data-value', 'all');
+                optionAll.textContent = '全部';
+                optionsInner.appendChild(optionAll);
+                
+                const optAll = document.createElement('option');
+                optAll.value = 'all';
+                optAll.textContent = '全部';
+                clsSelect.appendChild(optAll);
+                
+                // 动态添加缺陷类别（从availableClasses）
+                const sortedClasses = Array.from(availableClasses).sort();
+                sortedClasses.forEach(clsName => {
+                    const option = document.createElement('div');
+                    option.className = 'custom-option';
+                    option.setAttribute('data-value', clsName);
+                    option.textContent = clsName;
+                    optionsInner.appendChild(option);
+                    
+                    const opt = document.createElement('option');
+                    opt.value = clsName;
+                    opt.textContent = clsName;
+                    clsSelect.appendChild(opt);
+                });
+                
+                clsSelect.value = 'all';
+                updateCustomSelectDisplay('all');
+                
+            } else if (filterType === 'confidence') {
+                // 置信度区间
+                const ranges = [
+                    {value: 'all', label: '全部'},
+                    {value: '0-20', label: '0-20%'},
+                    {value: '20-40', label: '20-40%'},
+                    {value: '40-60', label: '40-60%'},
+                    {value: '60-80', label: '60-80%'},
+                    {value: '80-100', label: '80-100%'}
+                ];
+                
+                ranges.forEach(range => {
+                    const option = document.createElement('div');
+                    option.className = range.value === 'all' ? 'custom-option active' : 'custom-option';
+                    option.setAttribute('data-value', range.value);
+                    option.textContent = range.label;
+                    optionsInner.appendChild(option);
+                    
+                    const opt = document.createElement('option');
+                    opt.value = range.value;
+                    opt.textContent = range.label;
+                    clsSelect.appendChild(opt);
+                });
+                
+                clsSelect.value = 'all';
+                updateCustomSelectDisplay('all');
+                
+            } else if (filterType === 'defect_count') {
+                // 缺陷个数：动态统计所有批次中的缺陷个数
+                const countSet = new Set();
+                
+                // 从 allData 中统计缺陷个数
+                if (typeof allData !== 'undefined' && allData && allData.length > 0) {
+                    allData.forEach(batch => {
+                        let defectCount = 0;
+                        if (batch.defects && batch.defects.length > 0) {
+                            defectCount = batch.defects.length;
+                        } else if (batch.crops && batch.crops.length > 0) {
+                            defectCount = batch.crops.length;
+                        }
+                        if (defectCount > 0) {
+                            countSet.add(defectCount);
+                        }
+                    });
+                }
+                
+                console.log('[缺陷个数] 统计结果:', Array.from(countSet).sort((a, b) => a - b));
+                
+                // 添加"全部"选项
+                const optionAll = document.createElement('div');
+                optionAll.className = 'custom-option active';
+                optionAll.setAttribute('data-value', 'all');
+                optionAll.textContent = '全部';
+                optionsInner.appendChild(optionAll);
+                
+                const optAll = document.createElement('option');
+                optAll.value = 'all';
+                optAll.textContent = '全部';
+                clsSelect.appendChild(optAll);
+                
+                // 按从小到大排序并添加选项
+                const sortedCounts = Array.from(countSet).sort((a, b) => a - b);
+                sortedCounts.forEach(count => {
+                    const option = document.createElement('div');
+                    option.className = 'custom-option';
+                    option.setAttribute('data-value', count.toString());
+                    option.textContent = `${count}个`;
+                    optionsInner.appendChild(option);
+                    
+                    const opt = document.createElement('option');
+                    opt.value = count.toString();
+                    opt.textContent = `${count}个`;
+                    clsSelect.appendChild(opt);
+                });
+                
+                clsSelect.value = 'all';
+                updateCustomSelectDisplay('all');
+                
+            } else if (filterType === 'source_type') {
+                // 导入类型
+                const types = [
+                    {value: 'all', label: '全部'},
+                    {value: 'image', label: '图片'},
+                    {value: 'camera', label: '摄像头'},
+                    {value: 'ip_camera', label: 'IP摄像头'}
+                ];
+                
+                types.forEach(type => {
+                    const option = document.createElement('div');
+                    option.className = type.value === 'all' ? 'custom-option active' : 'custom-option';
+                    option.setAttribute('data-value', type.value);
+                    option.textContent = type.label;
+                    optionsInner.appendChild(option);
+                    
+                    const opt = document.createElement('option');
+                    opt.value = type.value;
+                    opt.textContent = type.label;
+                    clsSelect.appendChild(opt);
+                });
+                
+                clsSelect.value = 'all';
+                updateCustomSelectDisplay('all');
+            }
+            
+            // 重新绑定选项点击事件
+            const triggerElement = document.getElementById('cls-trigger');
+            optionsContainer.querySelectorAll('.custom-option').forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const value = this.getAttribute('data-value');
+                    console.log('[类别筛选] 点击了:', value);
+                    
+                    clsSelect.value = value;
+                    updateCustomSelectDisplay(value);
+                    
+                    optionsContainer.classList.remove('open');
+                    if (triggerElement) {
+                        triggerElement.classList.remove('open');
+                    }
+                    
+                    onFilter();
+                });
+            });
+        }
+        
         document.addEventListener('DOMContentLoaded', () => {
+            // 初始化第一个下拉框的选项（默认为缺陷类型）
+            updateFirstSelectOptions('defect_type');
+            
             loadCaptures();
             
-            // 自定义下拉框交互
+            // 自定义下拉框交互 - 第一个下拉框（cls）
             const trigger = document.getElementById('cls-trigger');
             const options = document.getElementById('cls-options');
             
@@ -2336,15 +2601,63 @@
                         trigger.classList.add('open');
                     }
                 });
-                
-                // 点击其他地方关闭下拉框
-                document.addEventListener('click', (e) => {
-                    if (!e.target.closest('.custom-select-wrapper')) {
-                        options.classList.remove('open');
-                        trigger.classList.remove('open');
+            }
+            
+            // 自定义下拉框交互 - 第二个下拉框（filter_type）
+            const filterTypeTrigger = document.getElementById('filter-type-trigger');
+            const filterTypeOptions = document.getElementById('filter-type-options');
+            
+            if (filterTypeTrigger && filterTypeOptions) {
+                // 点击触发器展开/收起
+                filterTypeTrigger.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isOpen = filterTypeOptions.classList.contains('open');
+                    
+                    if (isOpen) {
+                        filterTypeOptions.classList.remove('open');
+                        filterTypeTrigger.classList.remove('open');
+                    } else {
+                        filterTypeOptions.classList.add('open');
+                        filterTypeTrigger.classList.add('open');
                     }
                 });
+                
+                // 绑定选项点击事件
+                filterTypeOptions.querySelectorAll('.custom-option').forEach(option => {
+                    option.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const value = this.getAttribute('data-value');
+                        console.log('[筛选类型] 点击了:', value);
+                        
+                        // 更新隐藏的select元素
+                        const filterTypeSelect = document.getElementById('filter_type');
+                        filterTypeSelect.value = value;
+                        
+                        // 更新显示
+                        updateFilterTypeDisplay(value);
+                        
+                        // 关闭下拉框
+                        filterTypeOptions.classList.remove('open');
+                        filterTypeTrigger.classList.remove('open');
+                        
+                        // 根据筛选类型更新第一个下拉框的选项
+                        updateFirstSelectOptions(value);
+                        
+                        // 重新筛选
+                        onFilter();
+                    });
+                });
             }
+            
+            // 点击其他地方关闭下拉框
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.custom-select-wrapper')) {
+                    if (options) options.classList.remove('open');
+                    if (trigger) trigger.classList.remove('open');
+                    if (filterTypeOptions) filterTypeOptions.classList.remove('open');
+                    if (filterTypeTrigger) filterTypeTrigger.classList.remove('open');
+                }
+            });
             
             // 点击其他地方退出选择模式
             const selectionModeClickListener = (e) => {
@@ -2725,8 +3038,8 @@
             // 卡片3：AI分析建议
             const card3 = document.createElement('div');
             card3.className = 'info-card';
-                        
-            // 检查是否有AI分析结果（从后端API返回的currentBatchData中获取）
+            
+            // 先获取AI分析结果（从后端API返回的currentBatchData中获取）
             console.log('[检测记录详情] 批次数据:', batch);
             console.log('[检测记录详情] ai_analysis字段:', batch.ai_analysis);
             let aiAnalysis = batch.ai_analysis ? batch.ai_analysis.analysis : null;
@@ -2741,24 +3054,154 @@
             }
             
             console.log('[检测记录详情] 提取的AI分析文本:', aiAnalysis ? '有内容' : '无内容');
+            
+            // 添加卡片头部（标题 + 按钮）
+            const cardHeader = document.createElement('div');
+            cardHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm);';
+            
+            const cardTitle = document.createElement('h4');
+            cardTitle.textContent = 'AI检测建议';
+            cardTitle.style.cssText = 'margin: 0;';
+            
+            // 创建“开始AI分析”按钮
+            const analyzeBtn = document.createElement('button');
+            analyzeBtn.className = 'btn primary';
+            analyzeBtn.textContent = '开始AI分析';
+            analyzeBtn.style.cssText = 'padding: 6px 12px; font-size: 12px;';
+            
+            // 如果已有AI分析结果，隐藏按钮
+            if (aiAnalysis) {
+                analyzeBtn.style.display = 'none';
+            }
+            
+            // 按钮点击事件
+            analyzeBtn.addEventListener('click', async () => {
+                // 检查是否有图片和缺陷数据
+                console.log('[AI分析] 检查数据 - batch.images:', batch.images);
+                console.log('[AI分析] 检查数据 - batch.defects:', batch.defects);
+                console.log('[AI分析] 检查数据 - batch.detection_params:', batch.detection_params);
+                
+                const defects = batch.defects || batch.detections || [];
+                console.log('[AI分析] 使用的缺陷数据长度:', defects.length);
+                
+                if (defects.length === 0 || !batch.images || !batch.images.annotated) {
+                    console.error('[AI分析] 数据检查失败:', {
+                        hasDefects: defects.length > 0,
+                        hasImages: !!batch.images,
+                        hasAnnotated: !!(batch.images && batch.images.annotated)
+                    });
+                    alert('该批次缺少检测数据，无法进行AI分析');
+                    return;
+                }
+                
+                // 禁用按钮
+                analyzeBtn.disabled = true;
+                analyzeBtn.textContent = '分析中...';
+                
+                try {
+                    // 加载标注图片并转换为base64
+                    const imageUrl = `/captures/${batch.images.annotated}`;
+                    const imgResponse = await fetch(imageUrl);
+                    const imgBlob = await imgResponse.blob();
+                    const reader = new FileReader();
+                    
+                    const imageBase64 = await new Promise((resolve, reject) => {
+                        reader.onloadend = () => {
+                            // 去掉data:image/jpeg;base64,前缀
+                            const base64 = reader.result.split(',')[1];
+                            resolve(base64);
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(imgBlob);
+                    });
+                    
+                    console.log('[AI分析] 图片加载完成，开始调用API');
+                    
+                    // 调用图片理解API（与首页一致）
+                    const analysisRes = await fetch('/analyze_with_llm', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            image_base64: imageBase64,
+                            detections: defects,  // 使用上面已获取的defects变量
+                            model_type: 'yolo',
+                            conf_threshold: parseFloat(batch.detection_params?.conf_threshold) || 0.25,
+                            iou_threshold: parseFloat(batch.detection_params?.iou_threshold) || 0.45,
+                            batch_id: batch.batch_id || null
+                        })
+                    });
+                    
+                    const analysisData = await analysisRes.json();
+                    
+                    if (analysisData.success) {
+                        // 清理并格式化AI输出
+                        const cleanedText = cleanAIOutput(analysisData.analysis);
+                        const formattedHtml = cleanedText
+                            .replace(/\n/g, '<br>')
+                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                            .replace(/\*(.*?)\*/g, '<em>$1</em>');
+                        
+                        // 更新卡片内容
+                        const aiSuggestionDiv = card3.querySelector('.ai-suggestion-container');
+                        if (aiSuggestionDiv) {
+                            const now = new Date().toLocaleString('zh-CN');
+                            aiSuggestionDiv.innerHTML = `
+                                <div class="ai-suggestion" style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
+                                    ${formattedHtml}
+                                </div>
+                                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-secondary);">
+                                    分析时间: ${now}
+                                </div>
+                            `;
+                        }
+                        
+                        // 隐藏按钮
+                        analyzeBtn.style.display = 'none';
+                        
+                        // 更新本地数据，保存分析结果
+                        batch.ai_analysis = {
+                            timestamp: new Date().toISOString(),
+                            analysis: analysisData.analysis
+                        };
+                        
+                        console.log('[AI分析] ✅ 分析完成并已保存');
+                    } else {
+                        throw new Error(analysisData.error || '分析失败');
+                    }
+                } catch (error) {
+                    console.error('[AI分析] ❌ 错误:', error);
+                    alert('AI分析失败: ' + error.message);
+                } finally {
+                    // 恢复按钮状态
+                    analyzeBtn.disabled = false;
+                    analyzeBtn.textContent = '开始AI分析';
+                }
+            });
+            
+            cardHeader.appendChild(cardTitle);
+            cardHeader.appendChild(analyzeBtn);
                         
             card3.innerHTML = `
-                <h4>AI检测建议</h4>
-                ${aiAnalysis ? `
-                    <div class="ai-suggestion" style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
-                        ${aiAnalysis.replace(/\n/g, '<br>')}
-                    </div>
-                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-secondary);">
-                        分析时间: ${batch.ai_analysis.timestamp ? new Date(batch.ai_analysis.timestamp).toLocaleString('zh-CN') : '未知'}
-                    </div>
-                ` : `
-                    <div class="no-ai-message">
-                        <div style="font-size: 32px; margin-bottom: var(--spacing-sm);">🤖</div>
-                        <div>暂未进行AI智能分析</div>
-                        <div style="font-size: 12px; margin-top: var(--spacing-xs);">点击图片检测页面的"开始AI分析"按钮获取建议</div>
-                    </div>
-                `}
+                <div class="ai-suggestion-container">
+                    ${aiAnalysis ? `
+                        <div class="ai-suggestion" style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
+                            ${aiAnalysis.replace(/\n/g, '<br>')}
+                        </div>
+                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-secondary);">
+                            分析时间: ${batch.ai_analysis.timestamp ? new Date(batch.ai_analysis.timestamp).toLocaleString('zh-CN') : '未知'}
+                        </div>
+                    ` : `
+                        <div class="no-ai-message">
+                            <div style="font-size: 32px; margin-bottom: var(--spacing-sm);"></div>
+                            <div>暂未进行AI智能分析</div>
+                            <div style="font-size: 12px; margin-top: var(--spacing-xs);">点击"开始AI分析"按钮获取建议</div>
+                        </div>
+                    `}
+                </div>
             `;
+                        
+            // 将头部和内容添加到卡片
+            card3.prepend(cardHeader);
             contentDiv.appendChild(card3);
                         
             // 将内容区域添加到infoDiv
@@ -3677,9 +4120,23 @@
                     const dailyStatsData = await dailyStatsRes.json();
                     const dailyStats = dailyStatsData.data?.daily_stats || {};
                     
+                    // 获取损伤占比数据
+                    const damageRatioRes = await fetch('/api/captures/damage_ratio');
+                    const damageRatioData = await damageRatioRes.json();
+                    const damageRatio = damageRatioData.data?.damage_ratio || {};
+                    
+                    // 获取置信分布数据
+                    const confidenceDistRes = await fetch('/api/captures/confidence_distribution');
+                    const confidenceDistData = await confidenceDistRes.json();
+                    const confidenceDistribution = confidenceDistData.data?.distribution || [];
+                    const totalDefects = confidenceDistData.data?.total_defects || 0;
+                    
                     console.log('[AI分析] 请求数据:', {
                         defectStats,
-                        dailyStatsCount: Object.keys(dailyStats).length
+                        dailyStatsCount: Object.keys(dailyStats).length,
+                        damageRatioTypes: Object.keys(damageRatio).length,
+                        confidenceDistribution,
+                        totalDefects
                     });
                     
                     // 调用后端API
@@ -3688,7 +4145,10 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             defect_stats: defectStats,
-                            daily_stats: dailyStats
+                            daily_stats: dailyStats,
+                            damage_ratio: damageRatio,
+                            confidence_distribution: confidenceDistribution,
+                            total_defects: totalDefects
                         })
                     });
                     
@@ -3826,6 +4286,35 @@
                             <!-- 隐藏的原始select，用于保持兼容性 -->
                             <select id="cls" class="select" onchange="onFilter()" style="display:none;">
                                 <option value="all">全部</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label>筛选类型</label>
+                        <div class="custom-select-wrapper" id="filter-type-wrapper">
+                            <div class="custom-select" id="filter-type-select">
+                                <div class="custom-select-trigger" id="filter-type-trigger">
+                                    <span>缺陷类型</span>
+                                    <svg class="custom-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="9 18 15 12 9 6"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="custom-select-options" id="filter-type-options">
+                                    <div class="custom-select-options-inner">
+                                        <div class="custom-option active" data-value="defect_type">缺陷类型</div>
+                                        <div class="custom-option" data-value="confidence">置信度区间</div>
+                                        <div class="custom-option" data-value="defect_count">缺陷个数</div>
+                                        <div class="custom-option" data-value="source_type">导入类型</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- 隐藏的原始select，用于保持兼容性 -->
+                            <select id="filter_type" class="select" onchange="onFilterTypeChange()" style="display:none;">
+                                <option value="defect_type">缺陷类型</option>
+                                <option value="confidence">置信度区间</option>
+                                <option value="defect_count">缺陷个数</option>
+                                <option value="source_type">导入类型</option>
                             </select>
                         </div>
                     </div>
