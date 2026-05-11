@@ -108,7 +108,10 @@ class SystemState:
             'data': None,
             'date_range': None,
             'timestamp': 0,
-            'file_count': 0
+            'file_count': 0,
+            'status': 'idle',      # idle / loading / ready / error
+            'progress': 0,          # 0-100
+            'total_files': 0
         }
         self.cache_lock = threading.Lock()
         self.cache_ttl = 30  # 缓存有效期（秒）
@@ -188,6 +191,127 @@ def init_model():
     except Exception as e:
         print(f"[模型加载失败] {e}")
         return None
+
+def _filter_batch_item(batch, filter_type, cls_filter):
+    """检查单个批次是否通过筛选条件"""
+    if not filter_type or not cls_filter or filter_type == 'all' or cls_filter == 'all':
+        return True
+
+    if filter_type == 'defect_type':
+        has_defect = any(d.get('class_name') == cls_filter for d in (batch.get('defects') or []))
+        if not has_defect and batch.get('crops'):
+            has_defect = any(c.get('class_name') == cls_filter for c in batch['crops'])
+        return has_defect
+
+    elif filter_type == 'confidence':
+        if not batch.get('defects'):
+            return False
+        try:
+            min_conf, max_conf = [float(v) for v in cls_filter.split('-')]
+            for defect in batch['defects']:
+                conf = (defect.get('confidence', 0) or 0)
+                if conf <= 1.0:
+                    conf *= 100
+                if min_conf <= conf < max_conf:
+                    return True
+            return False
+        except Exception:
+            return False
+
+    elif filter_type == 'defect_count':
+        defect_count = len(batch.get('defects') or []) or len(batch.get('crops') or [])
+        try:
+            return defect_count == int(cls_filter)
+        except Exception:
+            return False
+
+    elif filter_type == 'source_type':
+        return batch.get('source_type', 'legacy') == cls_filter
+
+    return True
+
+
+def _apply_filters(batches, filter_type, cls_filter):
+    """对批次列表应用筛选（缺陷类型/置信度区间/缺陷个数/来源类型）"""
+    return [b for b in batches if _filter_batch_item(b, filter_type, cls_filter)]
+
+
+def _extract_timestamp_from_batch_id(batch_id):
+    """从批次ID中提取时间戳字符串（YYYYMMDD_HHMMSS 或 YYYYMMDD_HHMMSS_mmm）"""
+    import re
+    # image_batch_20260508_234623_216
+    m = re.match(r'image_batch_(\d{8}_\d{6}(?:_\d+)?)', batch_id)
+    if m: return m.group(1)
+    # camera_batch_20260502_111019 / ip_batch_20260502_111019 (后跟帧索引)
+    m = re.match(r'(?:camera|ip)_batch_(\d{8}_\d{6})', batch_id)
+    if m: return m.group(1)
+    # batch_{defect_name}_{YYYYMMDD}_{HHMMSS}_{mmm} 或 batch_{YYYYMMDD}_{HHMMSS}_{mmm}
+    m = re.match(r'batch_.*?_(\d{8}_\d{6}(?:_\d+)?)', batch_id)
+    if m: return m.group(1)
+    return None
+
+
+def _parse_iso_date(iso_str):
+    """解析 ISO 日期字符串，兼容有无秒数（YYYY-MM-DDTHH:MM / YYYY-MM-DDTHH:MM:SS）"""
+    from datetime import datetime
+    # 补齐秒数：2026-04-20T02:01 → 2026-04-20T02:01:00
+    if 'T' in iso_str and iso_str.count(':') == 1:
+        iso_str += ':00'
+    return datetime.fromisoformat(iso_str)
+
+
+def _parse_batch_timestamp(ts):
+    """解析批次时间戳，支持多种格式"""
+    from datetime import datetime
+    # 处理带毫秒的格式：20260508_234623_216 → 取前两部分
+    if '_' in ts:
+        parts = ts.split('_')
+        if len(parts) >= 2:
+            date_str = parts[0]  # 20260508
+            time_str = parts[1]  # 234623
+            if len(date_str) == 8 and len(time_str) == 6:
+                return datetime(int(date_str[:4]), int(date_str[4:6]), int(date_str[6:8]),
+                                int(time_str[:2]), int(time_str[2:4]), int(time_str[4:6]))
+    # 格式化的时间戳：2026-05-02 11:10:19
+    try:
+        return datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        pass
+    # 纯日期时间格式
+    try:
+        return datetime.strptime(ts, '%Y%m%d_%H%M%S')
+    except ValueError:
+        pass
+    return None
+
+
+def _filter_by_date(batches, req_start, req_end):
+    """按日期范围过滤批次列表"""
+    if not req_start and not req_end:
+        return batches
+    filtered = []
+    for batch in batches:
+        ts = batch.get('timestamp', '')
+        if not ts:
+            filtered.append(batch)
+            continue
+        try:
+            file_time = _parse_batch_timestamp(ts)
+            if file_time is None:
+                filtered.append(batch)
+                continue
+            if req_start:
+                start_dt = _parse_iso_date(req_start)
+                if file_time < start_dt:
+                    continue
+            if req_end:
+                end_dt = _parse_iso_date(req_end)
+                if file_time > end_dt:
+                    continue
+            filtered.append(batch)
+        except Exception:
+            filtered.append(batch)
+    return filtered
 
 def detection_thread():
     """后台检测线程"""
@@ -586,12 +710,17 @@ def set_red_box_classes():
 @app.route('/set_camera', methods=['POST'])
 def set_camera():
     """设置摄像头"""
-    data = request.json
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"success": False, "error": "无效的请求数据"}), 400
     source = data.get('source') or data.get('camera_type')
     
     # 关闭现有摄像头
     if state.cap:
-        state.cap.release()
+        try:
+            state.cap.release()
+        except Exception:
+            pass
         state.cap = None
     
     if source == 'none' or source is None:
@@ -803,15 +932,15 @@ def captures_data():
     import glob
     import re
     import time as time_module
-    
-    print("[DEBUG] 开始加载检测记录数据...")
-    start_time = time_module.time()
-    
+    from datetime import datetime
+
+    perf_start = time_module.time()
+
     # 获取筛选参数
     filter_type = request.args.get('filter_type', 'defect_type')  # defect_type, confidence, source_type
     cls_filter = request.args.get('cls', 'all')  # 具体的筛选值
-    
-    print(f"[DEBUG] 筛选类型: {filter_type}, 筛选值: {cls_filter}")
+    req_start = request.args.get('start', '')  # 开始日期
+    req_end = request.args.get('end', '')  # 结束日期
     
     # 检查缓存是否有效
     current_time = time_module.time()
@@ -826,107 +955,45 @@ def captures_data():
             capture_files_count = len(glob.glob(os.path.join(Config.CAPTURE_DIR, '*.jpg'))) + \
                                   len(glob.glob(os.path.join(Config.CAPTURE_DIR, '*.json')))
             if cached_file_count == capture_files_count:
-                print(f"[DEBUG] 使用缓存数据 ({cached_file_count} 个文件), 耗时: {time_module.time() - start_time:.3f}s")
-                
+                print(f"[数据] 使用缓存 ({cached_file_count} 个文件)")
+
                 # 即使使用缓存，也要应用筛选逻辑
                 result = state.captures_cache['data']
+                # 按日期范围筛选
+                result = _filter_by_date(result, req_start, req_end)
+                # 按缺陷类型/置信度等筛选
                 if cls_filter and cls_filter != 'all':
-                    print(f"[DEBUG] 应用筛选: filter_type={filter_type}, cls_filter={cls_filter}")
-                    filtered_result = []
-                    
-                    for batch in result:
-                        if filter_type == 'defect_type':
-                            # 缺陷类型筛选
-                            has_defect = False
-                            if batch.get('defects'):
-                                has_defect = any(defect.get('class_name') == cls_filter for defect in batch['defects'])
-                            if not has_defect and batch.get('crops'):
-                                has_defect = any(crop.get('class_name') == cls_filter for crop in batch['crops'])
-                            if has_defect:
-                                filtered_result.append(batch)
-                                
-                        elif filter_type == 'confidence':
-                            # 置信度区间筛选
-                            if not batch.get('defects'):
-                                if len(filtered_result) < 3:  # 只打印前3个批次的信息
-                                    print(f"[DEBUG] 批次 {batch.get('batch_id')} 没有defects字段，跳过")
-                                continue
-                            
-                            # 解析置信度区间 (例如 "40-60" -> 40-60)
-                            try:
-                                min_conf, max_conf = [float(v) for v in cls_filter.split('-')]
-                                if len(filtered_result) < 3:  # 只打印前3个批次的详细信息
-                                    print(f"[DEBUG] 置信度筛选: 区间={min_conf}-{max_conf}, 批次={batch.get('batch_id')}, 缺陷数量={len(batch['defects'])}")
-                                
-                                has_defect = False
-                                for idx, defect in enumerate(batch['defects']):
-                                    conf = defect.get('confidence', 0) or 0
-                                    # 如果置信度是小数形式（0-1），转换为百分比（0-100）
-                                    if conf <= 1.0:
-                                        conf = conf * 100
-                                    if len(filtered_result) < 3 and idx < 3:  # 只打印前3个缺陷
-                                        if len(filtered_result) < 3:
-                                            print(f"[DEBUG]   缺陷{idx}: confidence={conf:.2f}%, 类名={defect.get('class_name')}")
-                                    if min_conf <= conf < max_conf:
-                                        has_defect = True
-                                        if len(filtered_result) < 3:
-                                            print(f"[DEBUG]   ✓ 缺陷{idx} 匹配置信度区间 {min_conf}-{max_conf}%")
-                                        break
-                                
-                                if has_defect:
-                                    filtered_result.append(batch)
-                                    if len(filtered_result) <= 3:
-                                        print(f"[DEBUG] ✓ 批次 {batch.get('batch_id')} 匹配置信度区间")
-                                else:
-                                    if len(filtered_result) < 3:
-                                        print(f"[DEBUG] ✗ 批次 {batch.get('batch_id')} 未匹配")
-                            except Exception as e:
-                                print(f"[DEBUG] 置信度解析失败: {e}")
-                                
-                        elif filter_type == 'defect_count':
-                            # 缺陷个数筛选
-                            defect_count = 0
-                            if batch.get('defects'):
-                                defect_count = len(batch['defects'])
-                            elif batch.get('crops'):
-                                defect_count = len(batch['crops'])
-                            
-                            try:
-                                target_count = int(cls_filter)
-                                if defect_count == target_count:
-                                    filtered_result.append(batch)
-                            except Exception as e:
-                                print(f"[DEBUG] 缺陷个数解析失败: {e}")
-                                
-                        elif filter_type == 'source_type':
-                            # 导入类型筛选
-                            source_type = batch.get('source_type', 'legacy')
-                            if source_type == cls_filter:
-                                filtered_result.append(batch)
-                    
-                    result = filtered_result
-                    print(f"[DEBUG] 筛选后剩余 {len(result)} 条记录")
-                
+                    result = _apply_filters(result, filter_type, cls_filter)
+
                 return jsonify({
                     'data': result,
                     'date_range': state.captures_cache['date_range'],
                     'cached': True
                 })
     
+    # 检查是否已有后台预加载正在进行（避免重复扫描）
+    retry_count = 0
+    while True:
+        with state.cache_lock:
+            current_status = state.captures_cache['status']
+        if current_status != 'loading':
+            break
+        retry_count += 1
+        if retry_count > 25:
+            break
+        time_module.sleep(0.2)
+
     # 缓存无效，重新扫描
-    print("[DEBUG] 缓存无效，重新扫描文件系统...")
-    
-    # 获取所有截图文件（包括.jpg和.json）
+    with state.cache_lock:
+        state.captures_cache['status'] = 'loading'
+        state.captures_cache['progress'] = 0
+
     capture_files = glob.glob(os.path.join(Config.CAPTURE_DIR, '*.jpg')) + \
                     glob.glob(os.path.join(Config.CAPTURE_DIR, '*.json'))
     file_count = len(capture_files)
-    print(f"[DEBUG] 找到 {file_count} 个文件")
-    
-    # 调试：查找包含rolled的文件
-    rolled_files = [f for f in capture_files if 'rolled' in os.path.basename(f)]
-    print(f"[DEBUG] 找到 {len(rolled_files)} 个包含'rolled'的文件")
-    for f in rolled_files[:3]:
-        print(f"  - {os.path.basename(f)}")
+
+    with state.cache_lock:
+        state.captures_cache['total_files'] = file_count
     
     # 从文件名提取时间戳进行排序（避免调用getmtime）
     def extract_time_from_filename(filepath):
@@ -958,7 +1025,6 @@ def captures_data():
         return os.path.getmtime(filepath)
     
     capture_files.sort(key=extract_time_from_filename, reverse=True)
-    print(f"[DEBUG] 文件排序完成，耗时: {time_module.time() - start_time:.3f}s")
     
     # 按批次ID分组
     batches = {}
@@ -971,10 +1037,6 @@ def captures_data():
     for img_path in capture_files:
         filename = os.path.basename(img_path)
         mtime = os.path.getmtime(img_path)
-        
-        # 调试：如果是rolled文件，打印详细信息
-        if 'rolled' in filename:
-            print(f"[DEBUG] 处理文件: {filename}")
         
         # 解析文件名格式：
         # 新格式: batch_{defect_name}_{timestamp}_{type}.jpg  (如 batch_rolled-in_scale_20260430_225606_914_original.jpg)
@@ -1072,7 +1134,7 @@ def captures_data():
                         info_data = json.load(f)
                         frame_data['defects'] = info_data.get('defects', [])
                         frame_data['detection_params'] = info_data.get('detection_params', {})
-                        frame_data['timestamp'] = info_data.get('timestamp_short', timestamp_str)
+                        frame_data['timestamp'] = timestamp_str if timestamp_str else info_data.get('timestamp_short', '')
                         camera_sessions[session_id]['total_frames'] = max(
                             camera_sessions[session_id]['total_frames'],
                             frame_index + 1
@@ -1154,7 +1216,7 @@ def captures_data():
                             info_data = json.load(f)
                             batches[batch_id]['defects'] = info_data.get('defects', [])
                             batches[batch_id]['detection_params'] = info_data.get('detection_params', {})
-                            batches[batch_id]['timestamp'] = info_data.get('timestamp_short', timestamp_str)
+                            batches[batch_id]['timestamp'] = timestamp_str if timestamp_str else info_data.get('timestamp_short', '')
                     except Exception as e:
                         print(f"[读取批次信息失败] {batch_id}: {e}")
             else:
@@ -1248,10 +1310,10 @@ def captures_data():
                         info_data = json.load(f)
                         batches[batch_id]['defects'] = info_data.get('defects', [])
                         batches[batch_id]['detection_params'] = info_data.get('detection_params', {})
-                        batches[batch_id]['timestamp'] = info_data.get('timestamp_short', match.group(1))
+                        batches[batch_id]['timestamp'] = timestamp_str if timestamp_str else info_data.get('timestamp_short', '')
                 except Exception as e:
                     print(f"[读取批次信息失败] {batch_id}: {e}")
-    
+
     # 将摄像头会话转换为batch格式
     for session_id, session_data in camera_sessions.items():
         # 按帧索引排序
@@ -1334,85 +1396,18 @@ def captures_data():
         }
         state.captures_cache['timestamp'] = current_time
         state.captures_cache['file_count'] = file_count
-    
-    total_time = time_module.time() - start_time
-    print(f"[DEBUG] 数据加载完成，共 {len(result)} 条记录，耗时: {total_time:.3f}s")
-    
-    # 应用筛选逻辑（如果需要）
+        state.captures_cache['status'] = 'ready'
+        state.captures_cache['progress'] = 100
+
+    total_time = time_module.time() - perf_start
+    print(f"[数据] 加载 {len(result)} 条记录，耗时 {total_time:.2f}s")
+
+    # 按日期范围筛选
+    result = _filter_by_date(result, req_start, req_end)
+    # 应用缺陷类型/置信度等筛选
     if cls_filter and cls_filter != 'all':
-        print(f"[DEBUG] 应用筛选: filter_type={filter_type}, cls_filter={cls_filter}")
-        filtered_result = []
-        
-        for batch in result:
-            if filter_type == 'defect_type':
-                # 缺陷类型筛选
-                has_defect = False
-                if batch.get('defects'):
-                    has_defect = any(defect.get('class_name') == cls_filter for defect in batch['defects'])
-                if not has_defect and batch.get('crops'):
-                    has_defect = any(crop.get('class_name') == cls_filter for crop in batch['crops'])
-                if has_defect:
-                    filtered_result.append(batch)
-                    
-            elif filter_type == 'confidence':
-                # 置信度区间筛选
-                if not batch.get('defects'):
-                    print(f"[DEBUG] 批次 {batch.get('batch_id')} 没有defects字段，跳过")
-                    continue
-                
-                # 解析置信度区间 (例如 "40-60" -> 40-60)
-                try:
-                    min_conf, max_conf = [float(v) for v in cls_filter.split('-')]
-                    print(f"[DEBUG] 置信度筛选: 区间={min_conf}-{max_conf}, 批次={batch.get('batch_id')}, 缺陷数量={len(batch['defects'])}")
-                    
-                    has_defect = False
-                    for idx, defect in enumerate(batch['defects']):
-                        conf = defect.get('confidence', 0) or 0
-                        # 如果置信度是小数形式（0-1），转换为百分比（0-100）
-                        if conf <= 1.0:
-                            conf = conf * 100
-                        if idx < 3:  # 只打印前3个缺陷的置信度
-                            print(f"[DEBUG]   缺陷{idx}: confidence={conf:.2f}%, 类名={defect.get('class_name')}")
-                        if min_conf <= conf < max_conf:
-                            has_defect = True
-                            print(f"[DEBUG]   ✓ 缺陷{idx} 匹配置信度区间 {min_conf}-{max_conf}%")
-                            break
-                    
-                    if has_defect:
-                        filtered_result.append(batch)
-                        print(f"[DEBUG] ✓ 批次 {batch.get('batch_id')} 匹配置信度区间")
-                    else:
-                        print(f"[DEBUG] ✗ 批次 {batch.get('batch_id')} 未匹配")
-                except Exception as e:
-                    print(f"[DEBUG] 置信度解析失败: {e}")
-                    
-            elif filter_type == 'defect_count':
-                # 缺陷个数筛选
-                defect_count = 0
-                if batch.get('defects'):
-                    defect_count = len(batch['defects'])
-                elif batch.get('crops'):
-                    defect_count = len(batch['crops'])
-                
-                try:
-                    target_count = int(cls_filter)
-                    if defect_count == target_count:
-                        filtered_result.append(batch)
-                        print(f"[DEBUG] ✓ 批次 {batch.get('batch_id')} 匹配缺陷个数 {target_count}")
-                    else:
-                        print(f"[DEBUG] ✗ 批次 {batch.get('batch_id')} 缺陷个数不匹配 (实际:{defect_count}, 目标:{target_count})")
-                except Exception as e:
-                    print(f"[DEBUG] 缺陷个数解析失败: {e}")
-                    
-            elif filter_type == 'source_type':
-                # 导入类型筛选
-                source_type = batch.get('source_type', 'legacy')
-                if source_type == cls_filter:
-                    filtered_result.append(batch)
-        
-        result = filtered_result
-        print(f"[DEBUG] 筛选后剩余 {len(result)} 条记录")
-    
+        result = _apply_filters(result, filter_type, cls_filter)
+
     # 返回数据和日期范围
     return jsonify({
         'data': result,
@@ -1423,61 +1418,84 @@ def captures_data():
         'cached': False
     })
 
+def _extract_timestamp_from_info_filename(filename):
+    """从 info JSON 文件名中提取时间戳字符串（YYYYMMDD_HHMMSS 格式）"""
+    import re
+    # image_batch_20260508_234623_216_info.json
+    m = re.match(r'image_batch_(\d{8}_\d{6}_\d+?)_info\.json', filename)
+    if m: return m.group(1)
+    # batch_{defect_name}_{YYYYMMDD}_{HHMMSS}_{mmm}_info.json
+    m = re.match(r'batch_[a-zA-Z0-9_-]+_(\d{8}_\d{6}_\d+?)_info\.json', filename)
+    if m: return m.group(1)
+    # batch_{YYYYMMDD}_{HHMMSS}_{mmm}_info.json (旧格式)
+    m = re.match(r'batch_(\d{8}_\d{6}_\d+?)_info\.json', filename)
+    if m: return m.group(1)
+    # camera_batch / ip_batch
+    m = re.match(r'(?:camera|ip)_batch_(\d{8}_\d{6})_\d+_\d+_info\.json', filename)
+    if m: return m.group(1)
+    return None
+
+
 @app.route('/api/captures/stats')
 def captures_stats():
     """获取缺陷统计数据（用于圆环图）"""
     import glob
     import re
     from datetime import datetime
-    
-    # 获取时间范围参数
+    import time as time_module
+
     start_time = request.args.get('start', '')
     end_time = request.args.get('end', '')
-    
-    print(f"[缺陷统计] 时间范围: {start_time} - {end_time}")
-    
-    # 获取所有批次信息文件
+    filter_type = request.args.get('filter_type', '')
+    cls_filter = request.args.get('cls', '')
+
+    print(f"[缺陷统计] 时间范围: {start_time} - {end_time}, 筛选: {filter_type}={cls_filter}")
+
     json_files = glob.glob(os.path.join(Config.CAPTURE_DIR, '*.json'))
-    
-    # 统计缺陷数量
+
     defect_counts = {}
-    
+
     for json_file in json_files:
         try:
+            filename = os.path.basename(json_file)
+            raw_ts = _extract_timestamp_from_info_filename(filename)
+
+            # 日期范围筛选（使用文件名时间戳）
+            if raw_ts and (start_time or end_time):
+                try:
+                    parts = raw_ts.split('_')
+                    date_str = parts[0]
+                    time_str = parts[1]
+                    file_time = datetime(int(date_str[:4]), int(date_str[4:6]), int(date_str[6:8]),
+                                         int(time_str[:2]), int(time_str[2:4]), int(time_str[4:6]))
+                    if start_time:
+                        start_dt = _parse_iso_date(start_time)
+                        if file_time < start_dt:
+                            continue
+                    if end_time:
+                        end_dt = _parse_iso_date(end_time)
+                        if file_time > end_dt:
+                            continue
+                except Exception:
+                    pass
+
             with open(json_file, 'r', encoding='utf-8') as f:
                 info_data = json.load(f)
-                
-                # 检查时间范围
-                timestamp_str = info_data.get('timestamp_short', '')
-                if timestamp_str and (start_time or end_time):
-                    try:
-                        # 解析时间戳格式: 2026-04-30 22:56:06
-                        file_time = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
-                        
-                        if start_time:
-                            start_dt = datetime.fromisoformat(start_time)
-                            if file_time < start_dt:
-                                continue
-                        
-                        if end_time:
-                            end_dt = datetime.fromisoformat(end_time)
-                            if file_time > end_dt:
-                                continue
-                    except:
-                        pass  # 时间解析失败，跳过过滤
-                
-                # 统计缺陷
+
+                if not _filter_batch_item(info_data, filter_type, cls_filter):
+                    continue
+
                 defects = info_data.get('defects', [])
                 for defect in defects:
                     class_name = defect.get('class_name', '未知')
                     defect_counts[class_name] = defect_counts.get(class_name, 0) + 1
-                    
+
         except Exception as e:
             print(f"[读取批次信息失败] {json_file}: {e}")
             continue
-    
+
     print(f"[缺陷统计] 统计结果: {defect_counts}")
-    
+
     return jsonify({
         'success': True,
         'data': {
@@ -1493,9 +1511,21 @@ def clear_captures_cache():
         state.captures_cache['date_range'] = None
         state.captures_cache['timestamp'] = 0
         state.captures_cache['file_count'] = 0
-    
+        state.captures_cache['status'] = 'idle'
+        state.captures_cache['progress'] = 0
+
     print("[缓存] 已清除检测记录缓存")
     return jsonify({'success': True})
+
+@app.route('/captures_cache_status')
+def captures_cache_status():
+    """返回检测记录缓存预热状态"""
+    with state.cache_lock:
+        return jsonify({
+            'status': state.captures_cache['status'],
+            'progress': state.captures_cache['progress'],
+            'total_files': state.captures_cache['total_files'] or len(state.captures_cache.get('data') or [])
+        })
 
 @app.route('/api/captures/recent_stats')
 def captures_recent_stats():
@@ -1506,11 +1536,13 @@ def captures_recent_stats():
     from collections import defaultdict
     import time as time_module
     
-    # 获取时间范围参数
+    # 获取时间范围参数和筛选参数
     start_time = request.args.get('start', '')
     end_time = request.args.get('end', '')
-    
-    print(f"[最近统计] 时间范围: {start_time} - {end_time}")
+    filter_type = request.args.get('filter_type', '')
+    cls_filter = request.args.get('cls', '')
+
+    print(f"[最近统计] 时间范围: {start_time} - {end_time}, 筛选: {filter_type}={cls_filter}")
     
     # 获取所有批次信息文件
     json_files = glob.glob(os.path.join(Config.CAPTURE_DIR, '*_info.json'))
@@ -1580,7 +1612,7 @@ def captures_recent_stats():
                     if start_time or end_time:
                         if start_time:
                             try:
-                                start_dt = datetime.fromisoformat(start_time)
+                                start_dt = _parse_iso_date(start_time)
                                 if file_datetime < start_dt:
                                     continue
                             except:
@@ -1588,7 +1620,7 @@ def captures_recent_stats():
                         
                         if end_time:
                             try:
-                                end_dt = datetime.fromisoformat(end_time)
+                                end_dt = _parse_iso_date(end_time)
                                 if file_datetime > end_dt:
                                     continue
                             except:
@@ -1601,10 +1633,14 @@ def captures_recent_stats():
                     # 读取JSON内容检查是否有缺陷
                     with open(json_file, 'r', encoding='utf-8') as f:
                         info_data = json.load(f)
-                        
+
+                        # 应用缺陷/来源/置信度筛选
+                        if not _filter_batch_item(info_data, filter_type, cls_filter):
+                            continue
+
                         # 统计总导入批次
                         daily_stats[date_key]['total'] += 1
-                        
+
                         # 统计有缺陷的批次
                         defects = info_data.get('defects', [])
                         if defects and len(defects) > 0:
@@ -1625,39 +1661,6 @@ def captures_recent_stats():
     # 转换为普通字典并按日期排序
     daily_stats_dict = {date: stats for date, stats in sorted(daily_stats.items())}
     
-    # 测试：添加5月1日和5月7日的测试数据（用于查看效果）
-    if start_time and end_time:
-        try:
-            start_dt = datetime.fromisoformat(start_time)
-            end_dt = datetime.fromisoformat(end_time)
-            
-            # 添加5月1日测试数据
-            may_1 = '2026-05-01'
-            if may_1 >= start_dt.strftime('%Y-%m-%d') and may_1 <= end_dt.strftime('%Y-%m-%d'):
-                if may_1 not in daily_stats_dict:
-                    daily_stats_dict[may_1] = {'total': 3, 'defect': 2}
-                    print(f"[测试数据] 添加5月1日: total=3, defect=2")
-                else:
-                    daily_stats_dict[may_1]['total'] += 3
-                    daily_stats_dict[may_1]['defect'] += 2
-                    print(f"[测试数据] 累加5月1日: total={daily_stats_dict[may_1]['total']}, defect={daily_stats_dict[may_1]['defect']}")
-            
-            # 添加5月7日额外测试数据
-            may_7 = '2026-05-07'
-            if may_7 >= start_dt.strftime('%Y-%m-%d') and may_7 <= end_dt.strftime('%Y-%m-%d'):
-                if may_7 not in daily_stats_dict:
-                    daily_stats_dict[may_7] = {'total': 5, 'defect': 3}
-                    print(f"[测试数据] 添加5月7日: total=5, defect=3")
-                else:
-                    daily_stats_dict[may_7]['total'] += 5
-                    daily_stats_dict[may_7]['defect'] += 3
-                    print(f"[测试数据] 累加5月7日: total={daily_stats_dict[may_7]['total']}, defect={daily_stats_dict[may_7]['defect']}")
-            
-            # 重新排序
-            daily_stats_dict = {date: stats for date, stats in sorted(daily_stats_dict.items())}
-        except Exception as e:
-            print(f"[添加测试数据失败]: {e}")
-    
     print(f"[最近统计] 统计结果: {daily_stats_dict}")
     
     return jsonify({
@@ -1671,40 +1674,64 @@ def captures_recent_stats():
 def captures_damage_ratio():
     """获取损伤占比统计（不同缺陷的检测框占据整个图片的面积占比）"""
     import glob
+    from datetime import datetime
     from collections import defaultdict
-    
-    # 获取时间范围参数
+
     start_time = request.args.get('start', '')
     end_time = request.args.get('end', '')
-    
-    print(f"[损伤占比] 时间范围: {start_time} - {end_time}")
-    
-    # 获取所有批次信息文件
+    filter_type = request.args.get('filter_type', '')
+    cls_filter = request.args.get('cls', '')
+
+    print(f"[损伤占比] 时间范围: {start_time} - {end_time}, 筛选: {filter_type}={cls_filter}")
+
     json_files = glob.glob(os.path.join(Config.CAPTURE_DIR, '*_info.json'))
-    
-    # 按缺陷类型统计面积占比
+
     damage_stats = defaultdict(lambda: {'total_area_ratio': 0.0, 'count': 0})
     total_images = 0
-    
+
     for json_file in json_files:
         try:
             filename = os.path.basename(json_file)
-            
+            raw_ts = _extract_timestamp_from_info_filename(filename)
+
+            # 日期范围筛选（使用文件名时间戳）
+            if raw_ts and (start_time or end_time):
+                try:
+                    parts = raw_ts.split('_')
+                    date_str = parts[0]
+                    time_str = parts[1]
+                    file_time = datetime(int(date_str[:4]), int(date_str[4:6]), int(date_str[6:8]),
+                                         int(time_str[:2]), int(time_str[2:4]), int(time_str[4:6]))
+                    if start_time:
+                        start_dt = _parse_iso_date(start_time)
+                        if file_time < start_dt:
+                            continue
+                    if end_time:
+                        end_dt = _parse_iso_date(end_time)
+                        if file_time > end_dt:
+                            continue
+                except Exception:
+                    pass
+
             # 读取JSON内容
             with open(json_file, 'r', encoding='utf-8') as f:
                 info_data = json.load(f)
-                
+
                 # 获取图片尺寸（优先从JSON中获取，否则从图片文件获取）
                 image_width = info_data.get('image_width', 0)
                 image_height = info_data.get('image_height', 0)
                 
                 # 如果JSON中没有图片尺寸，尝试从原始图片文件获取
                 if image_width == 0 or image_height == 0:
-                    # 查找对应的原始图片文件
                     batch_id = info_data.get('batch_id', '')
-                    original_image = os.path.join(Config.CAPTURE_DIR, f"{batch_id}_original.jpg")
-                    
-                    if os.path.exists(original_image):
+                    # 搜索匹配的原始图片（文件名前缀匹配，兼容各种批次格式）
+                    original_image = None
+                    for fname in os.listdir(Config.CAPTURE_DIR):
+                        if fname.startswith(batch_id) and '_original.' in fname:
+                            original_image = os.path.join(Config.CAPTURE_DIR, fname)
+                            break
+
+                    if original_image and os.path.exists(original_image):
                         try:
                             from PIL import Image
                             with Image.open(original_image) as img:
@@ -1713,12 +1740,15 @@ def captures_damage_ratio():
                             print(f"[读取图片尺寸失败] {original_image}: {e}")
                             continue
                     else:
-                        # 如果找不到图片，跳过此文件
                         continue
                 
                 if image_width == 0 or image_height == 0:
                     continue
-                
+
+                # 应用缺陷/来源/置信度筛选
+                if not _filter_batch_item(info_data, filter_type, cls_filter):
+                    continue
+
                 image_area = image_width * image_height
                 total_images += 1
                 
@@ -1769,18 +1799,18 @@ def captures_damage_ratio():
 def captures_confidence_distribution():
     """获取置信度分布统计（统计所有缺陷的置信度在五个区间的分布）"""
     import glob
+    from datetime import datetime
     from collections import defaultdict
-    
-    # 获取时间范围参数
+
     start_time = request.args.get('start', '')
     end_time = request.args.get('end', '')
-    
-    print(f"[置信分布] 时间范围: {start_time} - {end_time}")
-    
-    # 获取所有批次信息文件
+    filter_type = request.args.get('filter_type', '')
+    cls_filter = request.args.get('cls', '')
+
+    print(f"[置信分布] 时间范围: {start_time} - {end_time}, 筛选: {filter_type}={cls_filter}")
+
     json_files = glob.glob(os.path.join(Config.CAPTURE_DIR, '*_info.json'))
-    
-    # 定义五个区间
+
     ranges = [
         {'label': '0-20%', 'min': 0, 'max': 20},
         {'label': '20-40%', 'min': 20, 'max': 40},
@@ -1788,20 +1818,45 @@ def captures_confidence_distribution():
         {'label': '60-80%', 'min': 60, 'max': 80},
         {'label': '80-100%', 'min': 80, 'max': 100}
     ]
-    
-    # 初始化统计
+
     distribution = {r['label']: 0 for r in ranges}
     total_defects = 0
-    
+
     for json_file in json_files:
         try:
+            filename = os.path.basename(json_file)
+            raw_ts = _extract_timestamp_from_info_filename(filename)
+
+            # 日期范围筛选（使用文件名时间戳）
+            if raw_ts and (start_time or end_time):
+                try:
+                    parts = raw_ts.split('_')
+                    date_str = parts[0]
+                    time_str = parts[1]
+                    file_time = datetime(int(date_str[:4]), int(date_str[4:6]), int(date_str[6:8]),
+                                         int(time_str[:2]), int(time_str[2:4]), int(time_str[4:6]))
+                    if start_time:
+                        start_dt = _parse_iso_date(start_time)
+                        if file_time < start_dt:
+                            continue
+                    if end_time:
+                        end_dt = _parse_iso_date(end_time)
+                        if file_time > end_dt:
+                            continue
+                except Exception:
+                    pass
+
             # 读取JSON内容
             with open(json_file, 'r', encoding='utf-8') as f:
                 info_data = json.load(f)
-                
+
+                # 应用缺陷/来源/置信度筛选
+                if not _filter_batch_item(info_data, filter_type, cls_filter):
+                    continue
+
                 # 获取缺陷列表
                 defects = info_data.get('defects', [])
-                
+
                 for defect in defects:
                     confidence = defect.get('confidence', 0) * 100  # 转换为百分比
                     total_defects += 1
@@ -1987,7 +2042,7 @@ def batch_detail(batch_id):
                 info_data = json.load(f)
                 batch_info['defects'] = info_data.get('defects', [])
                 batch_info['detection_params'] = info_data.get('detection_params', {})
-                batch_info['timestamp'] = info_data.get('timestamp_short', '')
+                batch_info['timestamp'] = _extract_timestamp_from_batch_id(batch_id) or info_data.get('timestamp_short', '')
                 # 关键：读取AI分析结果
                 batch_info['ai_analysis'] = info_data.get('ai_analysis', None)
                 print(f"[批次详情] 加载批次 {batch_id}, ai_analysis存在: {batch_info['ai_analysis'] is not None}")
@@ -2424,7 +2479,24 @@ if __name__ == '__main__':
     
     # 预加载模型
     init_model()
-    
+
+    # 后台预热检测记录缓存（启动后1秒自动触发首次数据扫描）
+    def _warm_captures_cache():
+        import time as time_module
+        time_module.sleep(1.5)  # 等待 Flask 完全启动
+        try:
+            with app.test_client() as client:
+                print("[预热] 开始预加载检测记录数据...")
+                resp = client.get('/captures_data')
+                if resp.status_code == 200:
+                    print(f"[预热] 检测记录缓存预热完成")
+                else:
+                    print(f"[预热] 缓存预热返回状态: {resp.status_code}")
+        except Exception as e:
+            print(f"[预热] 缓存预热失败: {e}")
+
+    threading.Thread(target=_warm_captures_cache, daemon=True).start()
+
     app.run(
         host=Config.HOST,
         port=Config.PORT,

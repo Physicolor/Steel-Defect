@@ -7,7 +7,6 @@
   const modeEl         = $('mode');
   const videoFeed      = $('videoFeed');
   const canvas         = $('canvas');
-  const ctx            = canvas ? canvas.getContext('2d') : null;
   const redClassList   = $('redClassList');
   const eventsList     = $('eventsList');
 
@@ -170,6 +169,10 @@
   // ===== 摄像头切换 =====
   async function switchCamera() {
     const type = cameraSelect.value;
+
+    // 如果请求的类型与当前状态相同，跳过（防止syncCameraStatus触发的重复调用）
+    if (type === currentCameraStatus) return;
+
     const overlay = $('overlayMessage');
     const statusCam = $('statusCamera');
     const camNames = { 'none': '已关闭', 'local': '电脑摄像头', 'ip': 'IP摄像头' };
@@ -262,7 +265,7 @@
 
     const statusMode = $('statusMode');
     if (statusMode) statusMode.innerText =
-      val === 'detection' ? `检测模式 (${yoloName})` : `分割模式 (${unetName})`;
+      val === 'detection' ? '缺陷检测' : '语义分割';
     
     // 【关键】保存系统状态
     saveSystemState();
@@ -279,18 +282,6 @@
     } catch (e) { console.error('模型切换失败', e); }
   }
 
-  // ===== Canvas 画布（预留，用于未来可能的标注功能）=====
-  function resizeCanvas() {
-    if (!canvas || !videoFeed) return;
-    const w = Math.round(videoFeed.clientWidth  || 0);
-    const h = Math.round(videoFeed.clientHeight || 0);
-    if (w > 0 && h > 0) { canvas.width = w; canvas.height = h; }
-  }
-  if (canvas) {
-    window.addEventListener('resize', resizeCanvas);
-    setInterval(resizeCanvas, 800);
-  }
-  
   if (videoFeed) {
     ['dragstart', 'gesturestart'].forEach(evt => {
       videoFeed.addEventListener(evt, e => e.preventDefault());
@@ -399,8 +390,7 @@
 
   // ===== 初始化 =====
   async function init() {
-    resizeCanvas();
-    
+
     // 【关键】尝试恢复系统状态
     const savedState = loadSystemState();
     if (savedState) {

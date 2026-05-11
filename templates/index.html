@@ -36,12 +36,10 @@
                 </div>
             </div>
             <div class="header-actions">
-                <button class="folder-btn" title="检测记录" id="folderBtn">
+                <button class="folder-btn" title="检测记录">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                     </svg>
-                    <!-- 预加载状态指示器 -->
-                    <span class="preload-indicator" id="preloadIndicator" hidden></span>
                 </button>
                 <button class="settings-btn" title="设置">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -144,10 +142,6 @@
                         </div>
                     </div>
 
-                    <!-- 下方设置 -->
-                    <div class="below-video-settings">
-                        <!-- 红框缺陷已移至右侧 -->
-                    </div>
                 </div>
 
                 <!-- 图片检测区域(默认隐藏) -->
@@ -306,8 +300,8 @@
                             </div>
                             <div class="custom-select-options" id="modelDropdownOptions">
                                 <div class="custom-select-options-inner">
-                                    <div class="custom-option active" data-value="yolo" onclick="selectModel('yolo')">YOLO</div>
-                                    <div class="custom-option" data-value="unet" onclick="selectModel('unet')">UNet</div>
+                                    <div class="custom-option active" data-value="yolo" onclick="selectModelOption('yolo')">YOLO</div>
+                                    <div class="custom-option" data-value="unet" onclick="selectModelOption('unet')">UNet（暂未开放）</div>
                                 </div>
                             </div>
                         </div>
@@ -384,134 +378,6 @@
 
     <!-- 脚本 -->
     <script src="{{ url_for('static', filename='app.js') }}"></script>
-    
-    <!-- 分屏模式样式 -->
-    <style>
-        /* AI侧栏按钮激活状态 */
-        #splitViewBtn.active {
-            background: var(--primary) !important;
-            border-color: var(--primary) !important;
-            color: white !important;
-        }
-        
-        #splitViewBtn.active:hover {
-            background: var(--primary-dark) !important;
-            border-color: var(--primary-dark) !important;
-            box-shadow: var(--shadow-lg) !important;
-        }
-        
-        /* 分屏模式动画 - 只对必要的属性做过渡 */
-        #uploadPanel {
-            transition: gap 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        /* 左侧内容wrapper基础样式 */
-        .split-left-content {
-            width: 100%;
-            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;              /* 【关键修复】wrapper使用flex布局 */
-            flex-direction: column;     /* 【关键修复】子元素纵向排列 */
-        }
-        
-        /* 【关键修复】分屏动画期间，禁用子元素的transition避免抽搐 */
-        .split-left-content * {
-            transition: none !important;
-        }
-        
-        /* 分屏模式下的样式 */
-        .split-view-mode #uploadPanel {
-            display: flex !important;
-            flex-direction: row !important;
-            gap: 0 !important;  /* 禁用gap，由子元素自己处理间距 */
-            padding: 0 !important;  /* 【关键修复】移除padding，由子元素自己处理 */
-            align-items: flex-start !important;  /* 【关键修复】防止子元素高度被拉伸 */
-        }
-        
-        .split-view-mode .split-left-content {
-            width: 45% !important;
-            padding: var(--spacing-md) !important;  /* wrapper自己处理padding */
-            padding-right: calc(var(--spacing-md) + 16px) !important;  /* 右边额外留出间距 */
-            border-right: 1px solid var(--border) !important;
-            align-self: flex-start !important;  /* 【关键修复】wrapper不被拉伸 */
-        }
-        
-        /* AI面板 - 非分屏模式下完全隐藏 */
-        #splitAIAnalysisPanel {
-            display: none;
-        }
-        
-        /* 分屏模式下显示AI面板并做动画 */
-        .split-view-mode #splitAIAnalysisPanel {
-            display: block !important;
-            max-width: 9999px;  /* 足够大的值 */
-            opacity: 1;
-            flex: 1;
-            overflow-y: auto;
-            max-height: calc(100vh - 200px);
-            background: var(--bg-card) !important;
-            border-radius: var(--radius-lg) !important;
-            padding: var(--spacing-md) !important;  /* AI面板四周统一padding */
-            animation: fadeInPanel 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        @keyframes fadeInPanel {
-            from {
-                opacity: 0;
-                transform: translateX(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-        
-        .split-ai-section {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        /* 分屏模式下的camera-header样式 */
-        .split-view-mode #splitAIAnalysisPanel .camera-header {
-            margin-bottom: 16px;
-        }
-        
-        .split-ai-content {
-            background: var(--bg-secondary);
-            border-radius: 8px;
-            padding: 16px;
-            line-height: 1.6;
-        }
-        
-        .split-ai-content strong {
-            color: var(--primary);
-            font-weight: 600;
-        }
-        
-        .btn.icon-btn {
-            padding: 8px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .btn.icon-btn:hover {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
-        }
-        
-        .btn.icon-btn.active {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
-        }
-    </style>
     
     <!-- 检测参数调节和图片检测相关脚本 -->
     <script>
@@ -771,13 +637,13 @@
             // 新增: 控制截图间隔滑块的显示/隐藏
             const screenshotIntervalControl = document.getElementById('screenshotIntervalControl');
             if (mode === 'local' || mode === 'ip') {
-                screenshotIntervalControl.style.display = 'block';
+                screenshotIntervalControl.classList.remove('hidden-element');
                 // 强制重新渲染滑块，解决首次显示时位置不正确的问题
                 setTimeout(() => {
                     updateSliderProgress(screenshotIntervalSlider, intervalProgressBar);
                 }, 10);
             } else {
-                screenshotIntervalControl.style.display = 'none';
+                screenshotIntervalControl.classList.add('hidden-element');
             }
             
             if (mode === 'image') {
@@ -897,22 +763,6 @@
             }
         }
         
-        // 切换模型
-        function changeModel() {
-            const modelSelect = document.getElementById('modelSelect');
-            currentModel = modelSelect.value;
-            
-            // 这里可以添加切换模型的后端调用
-            console.log('切换模型到:', currentModel);
-            
-            // TODO: 调用后端API切换模型
-            // await fetch('/set_model', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
-            //     body: JSON.stringify({ model: currentModel })
-            // });
-        }
-        
         // 自定义下拉框交互
         let isModelDropdownOpen = false;
         
@@ -933,28 +783,41 @@
             }
         }
         
-        // 选择模型
-        function selectModel(model) {
-            currentModel = model;
-            
-            // 更新显示文字
-            const textElement = document.getElementById('modelSelectText');
-            textElement.textContent = model === 'yolo' ? 'YOLO' : 'UNet';
-            
-            // 更新active状态
-            document.querySelectorAll('.custom-option').forEach(option => {
-                option.classList.remove('active');
-            });
-            document.querySelector(`.custom-option[data-value="${model}"]`).classList.add('active');
-            
-            // 关闭下拉框
-            toggleModelDropdown();
-            
-            console.log('切换模型到:', currentModel);
-            
-            // TODO: 调用后端API切换模型
+        // 自定义提示弹窗（替代浏览器alert）
+        function showAlert(message, title) {
+            document.getElementById('alertMessageText').textContent = message;
+            document.getElementById('alertTitle').textContent = title || '提示';
+            document.getElementById('alertModal').classList.add('active');
         }
-        
+        function closeAlertModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('alertModal').classList.remove('active');
+        }
+
+        // 选择模型选项
+        function selectModelOption(value) {
+            if (value === 'unet') {
+                showAlert('UNet语义分割模型暂未开放，请使用YOLO检测模型');
+                toggleModelDropdown();
+                return;
+            }
+            // 更新显示文本
+            const displayText = document.getElementById('modelSelectText');
+            const options = document.getElementById('modelDropdownOptions').querySelectorAll('.custom-option');
+            options.forEach(opt => {
+                opt.classList.toggle('active', opt.getAttribute('data-value') === value);
+            });
+            if (displayText) displayText.textContent = value === 'yolo' ? 'YOLO' : 'UNet';
+            currentModel = value;
+            // 同步更新隐藏的 mode 下拉并触发模式切换
+            const modeSelect = document.getElementById('mode');
+            if (modeSelect) {
+                modeSelect.value = value === 'yolo' ? 'detection' : 'segmentation';
+                modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            toggleModelDropdown();
+        }
+
         // 点击其他地方关闭下拉框
         document.addEventListener('click', (e) => {
             const wrapper = document.getElementById('modelSelectWrapper');
@@ -972,17 +835,6 @@
                 updateSliderPosition('image');
             }, 100);
         });
-
-        // 面板折叠功能
-        function togglePanel(panelId) {
-            const panel = document.getElementById(panelId);
-            
-            if (panel.style.display === 'none') {
-                panel.style.display = 'block';
-            } else {
-                panel.style.display = 'none';
-            }
-        }
 
         // 图片检测相关变量
         const uploadZone = document.getElementById('uploadZone');
@@ -1349,33 +1201,18 @@
             // 清理AI输出文本
             let cleanedText = cleanAIOutput(analysisText);
             
-            // 按段落分割
-            const paragraphs = cleanedText.split('\n').filter(p => p.trim());
+            let html = cleanedText
+                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                .replace(/^## (.*$)/gim, '<h3>$1</h3>')
+                .replace(/^# (.*$)/gim, '<h4>$1</h4>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/^\- (.*$)/gim, '<li>$1</li>')
+                .replace(/^\d+\. (.*$)/gim, '<li>$1</li>')
+                .replace(/\n/g, '<br>');
             
-            let html = '';
-            paragraphs.forEach(para => {
-                para = para.trim();
-                
-                // 检测标题（以【】包裹的文本）
-                if (para.startsWith('【') && para.includes('】')) {
-                    const title = para.replace(/【|】/g, '');
-                    html += `<h4>${title}</h4>`;
-                }
-                // 检测 **标题** 格式（Markdown加粗作为标题）
-                else if (/^\*\*.+\*\*$/.test(para)) {
-                    const title = para.replace(/^\*\*|\*\*$/g, '');
-                    html += `<h4 style="color: var(--primary);">${title}</h4>`;
-                }
-                // 检测列表项（以 - 或 • 开头）
-                else if (para.startsWith('- ') || para.startsWith('• ')) {
-                    const content = para.substring(2);
-                    html += `<p>• ${content}</p>`;
-                }
-                // 普通段落
-                else {
-                    html += `<p>${para}</p>`;
-                }
-            });
+            html = html.replace(/(<li>.*<\/li>)/gims, '<ul>$1</ul>');
+            html = html.replace(/<\/ul>\s*<ul>/g, '');
             
             if (aiAnalysisContent) aiAnalysisContent.innerHTML = html;
         }
@@ -1389,7 +1226,7 @@
             // 1. 清理每一行：去除首尾空格
             lines = lines.map(line => line.trim());
             
-            // 2. 处理【标题】格式，转为 **标题** 格式（保留以便后续格式化）
+            // 2. 处理【标题】格式，转为加粗并去掉【】
             lines = lines.map(line => {
                 // 将 【标题】 替换为 **标题**
                 return line.replace(/^【(.+?)】\s*$/, '**$1**');
@@ -1403,19 +1240,7 @@
             // 4. 过滤掉所有空行
             let cleanedLines = lines.filter(line => line !== '');
             
-            let result = cleanedLines.join('\n');
-            
-            // 5. 清理部分 Markdown 格式符号（保留 ** 用于标题识别）
-            // 移除 # 标题标记
-            result = result.replace(/^#+\s+/gm, '');
-            // 移除 > 引用标记
-            result = result.replace(/^>\s+/gm, '');
-            // 移除 --- 分隔线
-            result = result.replace(/^---+$/gm, '');
-            // 移除 ` 代码标记
-            result = result.replace(/`/g, '');
-            
-            return result;
+            return cleanedLines.join('\n');
         }
 
         function renderResult(data) {
@@ -1670,8 +1495,8 @@
         window.addEventListener('resize', syncSidebarHeight);
         
         // 检测模式切换时也需要同步（视频/图片切换）
-        document.querySelectorAll('.mode-option').forEach(option => {
-            option.addEventListener('click', () => {
+        document.querySelectorAll('.mode-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
                 // 延迟执行，等待DOM更新
                 setTimeout(syncSidebarHeight, 100);
             });
@@ -1679,45 +1504,6 @@
         
         // 全局变量：记录iframe是否已加载
         let capturesIframeLoaded = false;
-        
-        // 页面加载完成后，预加载检测记录数据（后台预热缓存）
-        window.addEventListener('load', () => {
-            console.log('[预加载] 页面加载完成，开始预加载检测记录...');
-            
-            // 显示预加载指示器
-            const preloadIndicator = document.getElementById('preloadIndicator');
-            if (preloadIndicator) {
-                preloadIndicator.hidden = false;
-                preloadIndicator.classList.remove('success');
-            }
-            
-            // 延迟500ms后开始预加载，避免影响首页渲染
-            setTimeout(() => {
-                fetch('/captures_data')
-                    .then(response => response.json())
-                    .then(data => {
-                        const recordCount = data.data ? data.data.length : 0;
-                        const cached = data.cached || false;
-                        console.log(`[预加载] ✅ 检测记录预加载完成！记录数: ${recordCount}, 缓存: ${cached}`);
-                        
-                        // 更新指示器为成功状态
-                        if (preloadIndicator) {
-                            preloadIndicator.classList.add('success');
-                            // 2秒后隐藏指示器
-                            setTimeout(() => {
-                                preloadIndicator.hidden = true;
-                            }, 2000);
-                        }
-                    })
-                    .catch(error => {
-                        console.warn('[预加载] ⚠️ 预加载失败（不影响正常使用）:', error);
-                        // 失败时隐藏指示器
-                        if (preloadIndicator) {
-                            preloadIndicator.hidden = true;
-                        }
-                    });
-            }, 500);
-        });
         
         // 文件夹按钮点击事件：使用iframe切换检测记录页面
         document.querySelector('.folder-btn').addEventListener('click', () => {
@@ -1875,33 +1661,18 @@
             // 清理AI输出文本
             let cleanedText = cleanAIOutput(analysisText);
             
-            // 按段落分割
-            const paragraphs = cleanedText.split('\n').filter(p => p.trim());
+            let html = cleanedText
+                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                .replace(/^## (.*$)/gim, '<h3>$1</h3>')
+                .replace(/^# (.*$)/gim, '<h4>$1</h4>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/^\- (.*$)/gim, '<li>$1</li>')
+                .replace(/^\d+\. (.*$)/gim, '<li>$1</li>')
+                .replace(/\n/g, '<br>');
             
-            let html = '';
-            paragraphs.forEach(para => {
-                para = para.trim();
-                
-                // 检测标题（以【】包裹的文本）
-                if (para.startsWith('【') && para.includes('】')) {
-                    const title = para.replace(/【|】/g, '');
-                    html += `<h4>${title}</h4>`;
-                }
-                // 检测 **标题** 格式（Markdown加粗作为标题）
-                else if (/^\*\*.+\*\*$/.test(para)) {
-                    const title = para.replace(/^\*\*|\*\*$/g, '');
-                    html += `<h4 style="color: var(--primary);">${title}</h4>`;
-                }
-                // 检测列表项（以 - 或 • 开头）
-                else if (para.startsWith('- ') || para.startsWith('• ')) {
-                    const content = para.substring(2);
-                    html += `<p>• ${content}</p>`;
-                }
-                // 普通段落
-                else {
-                    html += `<p>${para}</p>`;
-                }
-            });
+            html = html.replace(/(<li>.*<\/li>)/gims, '<ul>$1</ul>');
+            html = html.replace(/<\/ul>\s*<ul>/g, '');
             
             splitAIAnalysisContent.innerHTML = html;
             splitAIAnalysisResult.hidden = false;  // 移除hidden属性而不是设置display
@@ -2158,7 +1929,20 @@
             </div>
         </div>
     </div>
-    
+
+    <!-- 自定义提示弹窗（替代浏览器alert） -->
+    <div id="alertModal" class="modal" onclick="closeAlertModal(event)">
+        <div class="confirm-modal-content">
+            <div class="confirm-title" id="alertTitle">提示</div>
+            <div class="confirm-message">
+                <span id="alertMessageText"></span>
+            </div>
+            <div class="confirm-buttons">
+                <button class="confirm-btn confirm-delete-btn" onclick="closeAlertModal()">确定</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 设置面板 -->
     <div class="settings-overlay" id="settingsOverlay"></div>
     <div class="settings-panel" id="settingsPanel">

@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed -n '16,1465p' \"D:\\\\\\\\Users\\\\\\\\12404\\\\\\\\Documents\\\\\\\\钢材检测系统\\\\\\\\SteelDefect\\(Claude Code\\)\\\\\\\\templates\\\\\\\\captures.html\")",
+      "Read(//tmp/**)",
+      "Bash(sed -n '17,1464p' \"D:\\\\\\\\Users\\\\\\\\12404\\\\\\\\Documents\\\\\\\\钢材检测系统\\\\\\\\SteelDefect\\(Claude Code\\)\\\\\\\\templates\\\\\\\\captures.html\")",
+      "Bash(wc -l \"D:\\\\\\\\Users\\\\\\\\12404\\\\\\\\Documents\\\\\\\\钢材检测系统\\\\\\\\SteelDefect\\(Claude Code\\)\\\\\\\\static\\\\\\\\captures.css\")",
+      "Bash(py --version)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(cd \"D:\\\\\\\\Users\\\\\\\\12404\\\\\\\\Documents\\\\\\\\钢材检测系统\\\\\\\\SteelDefect\\(Claude Code\\)\")",
+      "Bash(ls \"D:\\\\\\\\Users\\\\\\\\12404\\\\\\\\Documents\\\\\\\\钢材检测系统\\\\\\\\SteelDefect\\(Claude Code\\)\\\\\\\\services\\\\\\\\__pycache__\\\\\\\\\")",
+      "Bash(ls -d \"调试用文件\")",
+      "Bash(ls -d check_dependencies.py)",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('app.py', doraise=True\\); print\\('app.py 语法检查通过'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('app.py', doraise=True\\); print\\('语法检查通过'\\)\")",
+      "Bash(python *)"
+    ]
+  }
+}

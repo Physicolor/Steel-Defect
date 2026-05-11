@@ -7,7 +7,6 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
 [![Flask](https://img.shields.io/badge/Flask-2.3+-green.svg)](https://flask.palletsprojects.com/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
 
@@ -32,13 +31,11 @@
 - 📹 **实时视频流**: 支持USB摄像头和IP摄像头
 - 🔍 **智能分析**: AI大模型辅助缺陷分析（讯飞星火）
 - 📊 **检测记录**: 自动保存检测结果和图片组
-- 📧 **邮件报警**: 检测到缺陷时自动发送邮件通知
 - 🖼️ **批量管理**: 支持图片批次管理和详情查看
 
 ### 高级功能
 - ⚙️ **参数调节**: 实时调整置信度阈值、IOU阈值
 - 🎨 **可视化**: 标注图、热力图、缺陷裁剪图
-- 🔐 **警戒区域**: 可设置警戒线和警戒区域
 - 📱 **响应式UI**: 适配桌面和移动端
 
 ---
@@ -55,7 +52,7 @@
 ### 前端
 - **HTML5/CSS3** - 页面结构和样式
 - **JavaScript (ES6+)** - 交互逻辑
-- **Canvas API** - 图像绘制
+- **Chart.js** - 统计图表
 
 ### AI模型
 - **YOLOv8** - 钢材缺陷目标检测
@@ -118,30 +115,34 @@ SteelDefect/
 ├── records.json               # 检测记录数据
 ├── start.bat                  # Windows启动脚本
 ├── start_conda.bat            # Conda环境启动脚本
-├── check_dependencies.py      # 依赖检查工具
-├── INSTALL.md                 # 详细安装指南
+├── changes.md                 # 代码规范化改动报告
 │
 ├── services/                  # 服务层模块
 │   ├── model_service.py       # 模型加载与推理服务
 │   ├── video_service.py       # 摄像头管理服务
 │   ├── record_service.py      # 检测记录服务
-│   ├── llm_service.py         # 大模型API服务
-│   └── spark_image_service.py # 讯飞图片理解服务
+│   ├── spark_image_service.py # 讯飞图片理解服务
+│   └── spark_lite_service.py  # 讯飞文本对话服务
 │
 ├── segmentation/              # UNet分割模型
 │   └── unet/
 │       ├── channel_unet_models.py  # Channel-UNet模型定义
-│       ├── unet_model.py      # 标准UNet模型
-│       └── unet_parts.py      # UNet组件
+│       └── unet_model.py      # 标准UNet模型
 │
 ├── templates/                 # HTML模板
 │   ├── index.html            # 主页
 │   ├── detect.html           # 检测页面
 │   └── captures.html         # 检测记录页面
 │
-├── static/                    # 静态资源
-│   ├── style.css             # 全局样式
-│   └── script.js             # JavaScript脚本
+├── static/                    # 静态资源（按页面分离）
+│   ├── style.css             # 全局主样式表
+│   ├── captures.css          # 检测记录页独有样式
+│   ├── app.js                # 主页脚本
+│   ├── detect.js             # 图片检测页脚本
+│   ├── captures.js           # 检测记录页脚本
+│   ├── images/               # 图片资源
+│   ├── fonts/                # 字体文件
+│   └── js/                   # 第三方JS库
 │
 ├── captures/                  # 截图保存目录
 │   ├── *_original.jpg        # 原始图片
@@ -152,14 +153,10 @@ SteelDefect/
 │
 ├── uploads/                   # 上传文件目录
 │
-├── frontend/                  # React前端项目（可选）
-│   ├── src/
-│   ├── package.json
-│   └── ...
-│
-└── 调试用文件/                 # 调试和测试文件
-    ├── test_*.py             # 测试脚本
-    └── *.md                  # 开发文档
+└── frontend/                  # React前端项目（可选）
+    ├── src/
+    ├── package.json
+    └── ...
 ```
 
 ---
@@ -188,12 +185,6 @@ SteelDefect/
    - 自动保存到 `captures/` 目录
    - 在"检测记录"页面查看和管理
 
-### 快捷键
-
-- `Space` - 开始/暂停检测
-- `S` - 手动截图
-- `Esc` - 停止检测
-
 ---
 
 ## ⚙️ 配置说明
@@ -211,13 +202,6 @@ FLASK_PORT=5000
 # 设备配置
 USE_CUDA=true  # false强制使用CPU
 
-# 邮件报警
-SMTP_HOST=smtp.qq.com
-SMTP_PORT=465
-SMTP_USER=your_email@qq.com
-SMTP_PASS=your_authorization_code
-EMAIL_RECEIVER=receiver@example.com
-
 # 讯飞星火API（文本对话）
 SPARK_API_KEY=user_id:api_key
 SPARK_MODEL=4.0Ultra
@@ -228,7 +212,7 @@ SPARK_IMAGE_API_KEY=your_api_key
 SPARK_IMAGE_API_SECRET=your_api_secret
 ```
 
-**注意**: 如需使用AI智能分析功能，必须配置讯飞图片理解API。详细配置指南请查看 [SPARK_API_SETUP.md](SPARK_API_SETUP.md)。
+**注意**: 如需使用AI智能分析功能，必须配置讯飞图片理解API。
 
 ### 模型配置
 
@@ -274,14 +258,7 @@ SPARK_IMAGE_API_SECRET=your_api_secret
 - 记录数据保存在 `records.json`
 - 每个批次包含原图、标注图、热力图和JSON信息
 
-### Q5: 如何启用邮件报警？
-
-**A**:
-- 配置SMTP服务器信息（推荐使用QQ邮箱）
-- 获取授权码（不是登录密码）
-- 在系统中设置接收邮箱地址
-
-### Q6: 遇到 `'NoneType' object has no attribute 'encode'` 错误怎么办？
+### Q5: 遇到 `'NoneType' object has no attribute 'encode'` 错误怎么办？
 
 **A**:
 这是讯飞图片理解API认证信息未配置导致的。解决方法：
@@ -290,15 +267,7 @@ SPARK_IMAGE_API_SECRET=your_api_secret
 3. 安装依赖：`pip install python-dotenv`
 4. 重启应用
 
-详细配置步骤请查看 [SPARK_API_SETUP.md](SPARK_API_SETUP.md)。
-
-更多问题请查看 [INSTALL.md](INSTALL.md) 详细安装指南。
-
----
-
-## 📄 许可证
-
-本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
+更多问题请提交 GitHub Issue。
 
 ---
 

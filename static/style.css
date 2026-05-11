@@ -245,40 +245,11 @@ body {
   border-radius: 50%; /* 圆形 */
   width: 40px; /* 与设置按钮一致 */
   height: 40px;
-  position: relative; /* 为指示器定位 */
 }
 
 .folder-btn svg {
   width: 22px; /* 文件夹图标大小 */
   height: 22px;
-}
-
-/* 预加载状态指示器 */
-.preload-indicator {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--warning);
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-.preload-indicator.success {
-  background: var(--success);
-  animation: none;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(0.8);
-  }
 }
 
 .folder-btn:hover {
@@ -2965,4 +2936,259 @@ body.modal-open .page-container {
     background: var(--primary);
     color: white;
     border-color: var(--primary);
+}
+
+/* =====================================================
+   图片检测页面 (detect.html) 专属样式
+   ===================================================== */
+
+.nav-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.nav-header .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 10px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+    box-shadow: var(--shadow-sm);
+}
+
+.nav-header .back-link:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.reset-btn {
+    background: var(--danger);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    box-shadow: var(--shadow-sm);
+}
+
+.reset-btn:hover {
+    background: #B91C1C;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.image-size-control {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-elevated);
+    border-radius: var(--radius-md);
+    margin-top: var(--spacing-lg);
+    margin-bottom: var(--spacing-md);
+    border: 1px solid var(--border);
+}
+
+.image-size-control label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.image-size-control input[type="range"] {
+    flex: 1;
+    max-width: 200px;
+    height: 6px;
+    -webkit-appearance: none;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+}
+
+.image-size-control input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--primary);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.image-size-control .size-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary);
+    min-width: 60px;
+    text-align: right;
+}
+
+.ai-analysis-section {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(168, 85, 247, 0.05));
+    border-radius: var(--radius-md);
+    margin-top: var(--spacing-lg);
+    margin-bottom: var(--spacing-md);
+    border: 1px solid var(--primary-light);
+}
+
+.llm-status-indicator {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.llm-status-indicator.ready {
+    color: var(--success);
+}
+
+.llm-status-indicator.error {
+    color: var(--danger);
+}
+
+.ai-content code {
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 0.9em;
+}
+
+/* ========== 统一弹窗样式（模态框 + confirm弹窗） ========== */
+.modal {
+    display: flex;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0);
+    overflow: hidden;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease, background-color 0.35s ease, backdrop-filter 0.35s ease, -webkit-backdrop-filter 0.35s ease;
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+}
+
+.modal.active {
+    opacity: 1;
+    visibility: visible;
+    background-color: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.confirm-modal-content {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    animation: confirmModalFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes confirmModalFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.confirm-modal-content.fadeOut {
+    opacity: 0;
+    transform: scale(0.95);
+}
+
+.confirm-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: center;
+    margin-bottom: 16px;
+    font-family: 'HarmonyOS Sans', 'HarmonyOS Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.confirm-message {
+    background: rgba(0, 122, 255, 0.1);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.confirm-message span {
+    font-size: 14px;
+    color: var(--text-primary);
+    font-weight: 500;
+    font-family: 'HarmonyOS Sans', 'HarmonyOS Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.confirm-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+}
+
+.confirm-btn {
+    flex: 1;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 20px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: 'HarmonyOS Sans', 'HarmonyOS Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.cancel-btn {
+    background: rgba(120, 120, 128, 0.12);
+    color: var(--primary);
+}
+
+.cancel-btn:hover {
+    background: rgba(120, 120, 128, 0.2);
+}
+
+.confirm-delete-btn {
+    background: var(--primary);
+    color: white;
+}
+
+.confirm-delete-btn:hover {
+    background: #0040CC;
+}
+
+.confirm-delete-btn:active {
+    background: #0033A3;
 }
