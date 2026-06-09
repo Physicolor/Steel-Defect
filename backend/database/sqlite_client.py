@@ -40,6 +40,9 @@ class DatabaseClient:
             self.conn.row_factory = sqlite3.Row
             self.conn.execute("PRAGMA journal_mode=WAL")
             self.conn.execute("PRAGMA foreign_keys=ON")
+            self.conn.execute("PRAGMA cache_size=-64000")  # 64MB缓存
+            self.conn.execute("PRAGMA synchronous=NORMAL")
+            self.conn.execute("PRAGMA temp_store=MEMORY")
 
             # 创建表
             await self._init_tables()
@@ -112,6 +115,13 @@ class DatabaseClient:
                 updated_at TEXT
             )
         """)
+
+        # 创建索引以加速查询
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_detection_records_user_id ON detection_records(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_detection_records_timestamp ON detection_records(timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_detection_events_record_id ON detection_events(record_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_detection_events_user_id ON detection_events(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_detection_events_class_name ON detection_events(class_name)")
 
         self.conn.commit()
         logger.info("数据库表初始化完成")
@@ -472,6 +482,7 @@ class DatabaseClient:
                     date_stats[row[0]] = row[1]
 
             # ===== 事件统计（缺陷类型 + 置信度 + 损伤面积） =====
+            # 使用SQL聚合替代Python循环，大幅提升性能
             defect_stats = {}
             confidence_distribution = [
                 {"range": "0-20%", "count": 0, "percentage": 0},
@@ -480,62 +491,60 @@ class DatabaseClient:
                 {"range": "60-80%", "count": 0, "percentage": 0},
                 {"range": "80-100%", "count": 0, "percentage": 0},
             ]
-            damage_stats = {}
+            damage_ratio = {}
             total_events = 0
 
             try:
+                # 使用SQL GROUP BY直接统计缺陷类型
                 if user_id:
-                    cursor.execute("SELECT class_name, confidence, bbox_x1, bbox_y1, bbox_x2, bbox_y2 FROM detection_events WHERE user_id = ?", (user_id,))
+                    cursor.execute("SELECT class_name, COUNT(*) FROM detection_events WHERE user_id = ? GROUP BY class_name", (user_id,))
                 else:
-                    cursor.execute("SELECT class_name, confidence, bbox_x1, bbox_y1, bbox_x2, bbox_y2 FROM detection_events")
+                    cursor.execute("SELECT class_name, COUNT(*) FROM detection_events GROUP BY class_name")
+                for row in cursor.fetchall():
+                    defect_stats[row[0] or "未知"] = row[1]
+                    total_events += row[1]
 
-                events = cursor.fetchall()
-                total_events = len(events)
+                # 使用SQL CASE WHEN统计置信度分布
+                conf_query = """
+                    SELECT
+                        SUM(CASE WHEN confidence < 0.2 THEN 1 ELSE 0 END) as bin_0_20,
+                        SUM(CASE WHEN confidence >= 0.2 AND confidence < 0.4 THEN 1 ELSE 0 END) as bin_20_40,
+                        SUM(CASE WHEN confidence >= 0.4 AND confidence < 0.6 THEN 1 ELSE 0 END) as bin_40_60,
+                        SUM(CASE WHEN confidence >= 0.6 AND confidence < 0.8 THEN 1 ELSE 0 END) as bin_60_80,
+                        SUM(CASE WHEN confidence >= 0.8 THEN 1 ELSE 0 END) as bin_80_100
+                    FROM detection_events
+                """
+                if user_id:
+                    cursor.execute(conf_query + " WHERE user_id = ?", (user_id,))
+                else:
+                    cursor.execute(conf_query)
+                conf_row = cursor.fetchone()
+                if conf_row:
+                    bins = [conf_row[0] or 0, conf_row[1] or 0, conf_row[2] or 0, conf_row[3] or 0, conf_row[4] or 0]
+                    for i, count in enumerate(bins):
+                        confidence_distribution[i]["count"] = count
+                        confidence_distribution[i]["percentage"] = round(count / total_events * 100, 1) if total_events > 0 else 0
 
-                for ev in events:
-                    class_name = ev[0] or "未知"
-                    conf = ev[1] or 0
-
-                    # 缺陷类型统计
-                    defect_stats[class_name] = defect_stats.get(class_name, 0) + 1
-
-                    # 置信度分布
-                    if conf < 0.2:
-                        confidence_distribution[0]["count"] += 1
-                    elif conf < 0.4:
-                        confidence_distribution[1]["count"] += 1
-                    elif conf < 0.6:
-                        confidence_distribution[2]["count"] += 1
-                    elif conf < 0.8:
-                        confidence_distribution[3]["count"] += 1
-                    else:
-                        confidence_distribution[4]["count"] += 1
-
-                    # 损伤面积统计
-                    x1, y1, x2, y2 = ev[2] or 0, ev[3] or 0, ev[4] or 0, ev[5] or 0
-                    area = max(0, (x2 - x1)) * max(0, (y2 - y1))
-                    if class_name not in damage_stats:
-                        damage_stats[class_name] = {"total_area": 0, "count": 0}
-                    damage_stats[class_name]["total_area"] += area
-                    damage_stats[class_name]["count"] += 1
-
-                # 计算置信度百分比
-                if total_events > 0:
-                    for item in confidence_distribution:
-                        item["percentage"] = round(item["count"] / total_events * 100, 1)
-
-                # 计算损伤占比（平均面积）
-                damage_ratio = {}
-                for class_name, stats in damage_stats.items():
-                    avg_area = stats["total_area"] / stats["count"] if stats["count"] > 0 else 0
-                    damage_ratio[class_name] = {
-                        "avg_area": round(avg_area, 1),
-                        "total_count": stats["count"]
+                # 使用SQL聚合统计损伤面积
+                damage_query = """
+                    SELECT class_name,
+                        AVG(MAX(0, (bbox_x2 - bbox_x1)) * MAX(0, (bbox_y2 - bbox_y1))) as avg_area,
+                        COUNT(*) as cnt
+                    FROM detection_events
+                    WHERE bbox_x2 > bbox_x1 AND bbox_y2 > bbox_y1
+                """
+                if user_id:
+                    cursor.execute(damage_query + " AND user_id = ? GROUP BY class_name", (user_id,))
+                else:
+                    cursor.execute(damage_query + " GROUP BY class_name")
+                for row in cursor.fetchall():
+                    damage_ratio[row[0] or "未知"] = {
+                        "avg_area": round(row[1] or 0, 1),
+                        "total_count": row[2]
                     }
 
             except Exception as e:
                 logger.warning(f"获取事件统计失败（非关键）: {e}")
-                damage_ratio = {}
 
             return {
                 "total_records": total_records,

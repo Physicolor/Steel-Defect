@@ -342,13 +342,7 @@
                 if (!endInput.value) {
                     endInput.value = maxStr;
                 }
-                // 首次设置默认日期范围后刷新统计数据
-                if (isFirstSet) {
-                    fetchDefectStats();
-                    fetchRecentStats();
-                    fetchDamageRatio();
-                    fetchConfidenceDistribution();
-                }
+                // 首次设置默认日期范围时不单独刷新统计（DOMContentLoaded已统一触发）
             } else {
                 // 没有记录时显示横杠
                 startInput.placeholder = '—';
@@ -933,12 +927,9 @@
         
         function onFilter() {
             loadCaptures();
-            // 延迟刷新统计图表，确保后端筛选完成
+            // 延迟刷新统计图表（使用合并端点）
             setTimeout(() => {
-                fetchDefectStats();
-                fetchRecentStats();
-                fetchDamageRatio();
-                fetchConfidenceDistribution();
+                fetchAllStats();
             }, 300);
         }
 
@@ -2734,32 +2725,22 @@
             // 执行AI分析
             async function performAIAnalysis() {
                 if (!aiAnalysisLoading || !aiAnalysisResult) return;
-                
+
                 // 显示加载状态
                 aiAnalysisLoading.style.display = 'flex';
                 aiAnalysisResult.style.display = 'none';
-                
+
                 try {
-                    // 获取缺陷统计数据
-                    const defectStatsRes = await fetch('/api/captures/stats');
-                    const defectStatsData = await defectStatsRes.json();
-                    const defectStats = defectStatsData.data?.defects || {};
-                    
-                    // 获取每日统计数据
-                    const dailyStatsRes = await fetch('/api/captures/recent_stats');
-                    const dailyStatsData = await dailyStatsRes.json();
-                    const dailyStats = dailyStatsData.data?.daily_stats || {};
-                    
-                    // 获取损伤占比数据
-                    const damageRatioRes = await fetch('/api/captures/damage_ratio');
-                    const damageRatioData = await damageRatioRes.json();
-                    const damageRatio = damageRatioData.data?.damage_ratio || {};
-                    
-                    // 获取置信分布数据
-                    const confidenceDistRes = await fetch('/api/captures/confidence_distribution');
-                    const confidenceDistData = await confidenceDistRes.json();
-                    const confidenceDistribution = confidenceDistData.data?.distribution || [];
-                    const totalDefects = confidenceDistData.data?.total_defects || 0;
+                    // 使用合并端点一次性获取所有数据
+                    const allStatsRes = await fetch('/api/captures/all_stats');
+                    const allStatsData = await allStatsRes.json();
+                    const statsData = allStatsData.data || {};
+
+                    const defectStats = statsData.defects || {};
+                    const dailyStats = statsData.daily_stats || {};
+                    const damageRatio = statsData.damage_ratio || {};
+                    const confidenceDistribution = statsData.distribution || [];
+                    const totalDefects = statsData.total_defects || 0;
                     
                     console.log('[AI分析] 请求数据:', {
                         defectStats,
@@ -3462,16 +3443,41 @@
             confidenceChart.update();
         }
         
-        // 页面加载时初始化图表
+        // 页面加载时初始化图表（使用合并端点减少请求次数）
         document.addEventListener('DOMContentLoaded', () => {
             initDefectChart();
             initRecentStatsChart();
             initConfidenceChart();
-            fetchDefectStats();
-            fetchRecentStats();
-            fetchDamageRatio();
-            fetchConfidenceDistribution();
+            fetchAllStats();
         });
+
+        // 合并端点：一次性获取所有统计数据
+        async function fetchAllStats() {
+            try {
+                const response = await fetch('/api/captures/all_stats');
+                const result = await response.json();
+                if (result.success && result.data) {
+                    const data = result.data;
+                    // 更新所有图表
+                    if (data.defects) updateDefectChart(data.defects);
+                    if (data.daily_stats) updateRecentStatsChart(data.daily_stats);
+                    if (data.damage_ratio) renderDamageRatio(data.damage_ratio);
+                    if (data.distribution) updateConfidenceChart(data.distribution);
+                    // 更新缓存
+                    const now = Date.now();
+                    const { startTime, endTime, filterType, clsFilter } = getStatsFilterParams();
+                    const cacheKey = getCacheKey('all', startTime, endTime, filterType, clsFilter);
+                    statsCache[cacheKey] = { data: data, timestamp: now };
+                }
+            } catch (error) {
+                console.error('[统计数据] 获取失败:', error);
+                // 回退到单独请求
+                fetchDefectStats();
+                fetchRecentStats();
+                fetchDamageRatio();
+                fetchConfidenceDistribution();
+            }
+        }
         
         // 导出到全局作用域（HTML onchange 调用）
         window.onFilter = onFilter;

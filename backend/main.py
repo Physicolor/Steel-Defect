@@ -19,6 +19,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Depends, status, Request, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.templating import Jinja2Templates
@@ -91,6 +92,63 @@ camera_state = {
     "last_frame": None,
     "lock": threading.RLock()
 }
+
+# ==================== 捕获数据缓存 ====================
+import hashlib
+
+class CapturesCache:
+    """捕获目录数据的内存缓存，基于目录文件列表的哈希判断是否需要刷新"""
+
+    def __init__(self, ttl_seconds=5):
+        self._data = None          # 缓存的完整数据（batches字典）
+        self._file_hash = None     # 目录文件列表的哈希
+        self._timestamp = 0        # 缓存时间戳
+        self._ttl = ttl_seconds    # 缓存有效期（秒）
+        self._lock = threading.Lock()
+
+    def _get_dir_fingerprint(self, capture_dir: str) -> str:
+        """获取captures目录的指纹（基于文件名+大小+修改时间）"""
+        if not os.path.exists(capture_dir):
+            return ""
+        entries = []
+        for f in os.listdir(capture_dir):
+            fp = os.path.join(capture_dir, f)
+            if os.path.isfile(fp):
+                stat = os.stat(fp)
+                entries.append(f"{f}:{stat.st_size}:{stat.st_mtime_ns}")
+        entries.sort()
+        return hashlib.md5("|".join(entries).encode()).hexdigest()
+
+    def get(self, capture_dir: str):
+        """获取缓存数据，如果过期或目录变化则返回None"""
+        with self._lock:
+            now = time.time()
+            # TTL内直接返回缓存（不做任何文件系统检查）
+            if self._data is not None and (now - self._timestamp) < self._ttl:
+                return self._data
+            # TTL过期后，检查目录指纹是否变化
+            current_hash = self._get_dir_fingerprint(capture_dir)
+            if self._data is not None and current_hash == self._file_hash:
+                self._timestamp = now  # 刷新时间戳，延长TTL
+                return self._data
+            return None
+
+    def set(self, capture_dir: str, data):
+        """设置缓存数据"""
+        with self._lock:
+            self._data = data
+            self._file_hash = self._get_dir_fingerprint(capture_dir)
+            self._timestamp = time.time()
+
+    def invalidate(self):
+        """手动使缓存失效"""
+        with self._lock:
+            self._data = None
+            self._file_hash = None
+            self._timestamp = 0
+
+# 全局缓存实例（30秒TTL，新增/删除检测时自动失效）
+captures_cache = CapturesCache(ttl_seconds=30)
 
 # 检测参数
 detection_params = {
@@ -203,6 +261,9 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan
 )
+
+# GZip压缩（响应>500字节时自动压缩）
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # CORS - 使用配置中的白名单
 app.add_middleware(
@@ -888,6 +949,8 @@ async def detect_image(file: UploadFile = File(...)):
                 iou_threshold=detection_params["iou_threshold"],
                 source_type='image'
             )
+            # 新检测保存后使缓存失效
+            captures_cache.invalidate()
 
         # 转换为 base64
         _, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
@@ -915,26 +978,12 @@ async def detect_image(file: UploadFile = File(...)):
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 
-@app.get("/captures_data")
-async def captures_data(
-    page: int = Query(1, ge=1),
-    per_page: int = Query(12, ge=1, le=100),
-    defect_class: Optional[str] = Query(None),
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
-    filter_type: Optional[str] = Query(None),
-    source_type: Optional[str] = Query(None),
-    cls: Optional[str] = Query(None),
-    start: Optional[str] = Query(None),
-    end: Optional[str] = Query(None)
-):
-    """获取检测记录数据 - 扫描captures目录按批次分组"""
+def _scan_captures_directory(capture_dir: str) -> dict:
+    """扫描captures目录，返回批次数据和日期范围（供缓存使用）"""
     import glob
-    # re already imported at top level
 
-    capture_dir = os.path.join(os.path.dirname(__file__), "captures")
     if not os.path.exists(capture_dir):
-        return {"data": [], "date_range": {"min": None, "max": None}, "cached": False}
+        return {"batches": {}, "min_time": None, "max_time": None}
 
     capture_files = glob.glob(os.path.join(capture_dir, '*.jpg')) + \
                     glob.glob(os.path.join(capture_dir, '*.json'))
@@ -1036,70 +1085,275 @@ async def captures_data(
             except Exception as e:
                 logger.debug(f"解析info文件失败: {e}")
 
-    # 添加缩略图和图片计数
-    result = sorted(batches.values(), key=lambda x: x['mtime'], reverse=True)
-    for batch in result:
-        if 'annotated' in batch.get('images', {}):
-            batch['thumbnail'] = batch['images']['annotated']
-        elif 'heatmap' in batch.get('images', {}):
-            batch['thumbnail'] = batch['images']['heatmap']
-        elif 'original' in batch.get('images', {}):
-            batch['thumbnail'] = batch['images']['original']
-        elif batch.get('crops'):
-            batch['thumbnail'] = batch['crops'][0].get('filename', '')
-        else:
-            batch['thumbnail'] = ''
-        batch['image_count'] = len(batch.get('images', {})) + len(batch.get('crops', []))
+    return {"batches": batches, "min_time": min_time, "max_time": max_time}
 
-    return {"data": result, "date_range": {"min": min_time, "max": max_time}, "cached": False}
+
+def _get_cached_batches(capture_dir: str) -> tuple:
+    """获取缓存的批次数据，返回 (sorted_result, min_time, max_time)"""
+    cached = captures_cache.get(capture_dir)
+    if cached is None:
+        raw = _scan_captures_directory(capture_dir)
+        batches = raw["batches"]
+
+        # 添加缩略图和图片计数
+        result = sorted(batches.values(), key=lambda x: x['mtime'], reverse=True)
+        for batch in result:
+            if 'annotated' in batch.get('images', {}):
+                batch['thumbnail'] = batch['images']['annotated']
+            elif 'heatmap' in batch.get('images', {}):
+                batch['thumbnail'] = batch['images']['heatmap']
+            elif 'original' in batch.get('images', {}):
+                batch['thumbnail'] = batch['images']['original']
+            elif batch.get('crops'):
+                batch['thumbnail'] = batch['crops'][0].get('filename', '')
+            else:
+                batch['thumbnail'] = ''
+            batch['image_count'] = len(batch.get('images', {})) + len(batch.get('crops', []))
+
+        cached = {"result": result, "min_time": raw["min_time"], "max_time": raw["max_time"]}
+        captures_cache.set(capture_dir, cached)
+
+    return cached["result"], cached["min_time"], cached["max_time"]
+
+
+@app.get("/captures_data")
+async def captures_data(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(12, ge=1, le=100),
+    defect_class: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    filter_type: Optional[str] = Query(None),
+    source_type: Optional[str] = Query(None),
+    cls: Optional[str] = Query(None),
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None)
+):
+    """获取检测记录数据 - 使用内存缓存，毫秒级响应"""
+    capture_dir = os.path.join(os.path.dirname(__file__), "captures")
+    result, min_time, max_time = _get_cached_batches(capture_dir)
+    # 返回全量数据（前端需要全量数据用于筛选和分页）
+    return {"data": result, "date_range": {"min": min_time, "max": max_time}, "cached": True}
+
+
+@app.get("/api/captures/all_stats")
+async def captures_all_stats():
+    """获取所有统计数据（合并端点，减少前端请求次数）"""
+    try:
+        from datetime import datetime, timedelta
+        capture_dir = os.path.join(os.path.dirname(__file__), "captures")
+        batches, _, _ = _get_cached_batches(capture_dir)
+
+        # 1. 缺陷统计
+        defects = {}
+        total_defects = 0
+        for batch in batches:
+            for defect in batch.get('defects', []):
+                cls_name = defect.get('class_name', '未知')
+                defects[cls_name] = defects.get(cls_name, 0) + 1
+                total_defects += 1
+
+        # 2. 最近7天统计
+        today = datetime.now()
+        daily_stats = {}
+        for i in range(7):
+            d = today - timedelta(days=i)
+            daily_stats[d.strftime('%Y-%m-%d')] = {'total': 0, 'defect': 0}
+        for batch in batches:
+            ts = batch.get('timestamp', '')
+            if ts and len(ts) >= 8:
+                if 'T' in ts:
+                    try: date_str = ts[:10]
+                    except: continue
+                else:
+                    ymd = ts[:8]
+                    date_str = f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:8]}"
+                if date_str in daily_stats:
+                    daily_stats[date_str]['total'] += 1
+                    if batch.get('defects') and len(batch['defects']) > 0:
+                        daily_stats[date_str]['defect'] += 1
+
+        # 3. 损伤占比
+        damage = {}
+        for batch in batches:
+            for defect in batch.get('defects', []):
+                cls_name = defect.get('class_name', '未知')
+                bbox = defect.get('bbox', [0, 0, 0, 0])
+                if len(bbox) == 4:
+                    defect_area = max(0, (bbox[2] - bbox[0])) * max(0, (bbox[3] - bbox[1]))
+                else:
+                    defect_area = 0
+                image_area = 640 * 480
+                area_ratio = (defect_area / image_area) * 100 if image_area > 0 else 0
+                if cls_name not in damage:
+                    damage[cls_name] = {'total_area_ratio': 0.0, 'count': 0}
+                damage[cls_name]['total_area_ratio'] += area_ratio
+                damage[cls_name]['count'] += 1
+        damage_ratio_result = {}
+        for name, stats in damage.items():
+            if stats['count'] > 0:
+                damage_ratio_result[name] = {
+                    'avg_area_ratio': round(stats['total_area_ratio'] / stats['count'], 2),
+                    'total_count': stats['count']
+                }
+
+        # 4. 置信度分布
+        bins = [
+            {'range': '0-20%', 'min': 0, 'max': 0.2, 'count': 0},
+            {'range': '20-40%', 'min': 0.2, 'max': 0.4, 'count': 0},
+            {'range': '40-60%', 'min': 0.4, 'max': 0.6, 'count': 0},
+            {'range': '60-80%', 'min': 0.6, 'max': 0.8, 'count': 0},
+            {'range': '80-100%', 'min': 0.8, 'max': 1.01, 'count': 0},
+        ]
+        total_events = 0
+        for batch in batches:
+            for defect in batch.get('defects', []):
+                conf = defect.get('confidence', 0)
+                total_events += 1
+                for b in bins:
+                    if b['min'] <= conf < b['max']:
+                        b['count'] += 1
+                        break
+        distribution = []
+        for b in bins:
+            pct = round(b['count'] / total_events * 100, 1) if total_events > 0 else 0
+            distribution.append({'range': b['range'], 'count': b['count'], 'percentage': pct})
+
+        return {
+            "success": True,
+            "data": {
+                "defects": defects,
+                "total_records": len(batches),
+                "total_defects": total_defects,
+                "daily_stats": daily_stats,
+                "damage_ratio": damage_ratio_result,
+                "distribution": distribution,
+                "total_events": total_events,
+            }
+        }
+    except Exception as e:
+        return {"success": False, "data": {}}
 
 
 @app.get("/api/captures/stats")
 async def captures_stats():
-    """缺陷统计"""
-    if not record_service:
-        return {"success": False, "data": {}}
+    """缺陷统计 - 使用缓存数据"""
     try:
-        class_names = getattr(model_service, 'class_names', {}) if model_service else {}
-        data = record_service.get_defect_stats(class_names)
-        return {"success": True, "data": data}
+        capture_dir = os.path.join(os.path.dirname(__file__), "captures")
+        batches, _, _ = _get_cached_batches(capture_dir)
+        defects = {}
+        total_defects = 0
+        for batch in batches:
+            for defect in batch.get('defects', []):
+                cls_name = defect.get('class_name', '未知')
+                defects[cls_name] = defects.get(cls_name, 0) + 1
+                total_defects += 1
+        return {"success": True, "data": {
+            'total_records': len(batches),
+            'total_defects': total_defects,
+            'defects': defects
+        }}
     except Exception as e:
         return {"success": False, "data": {}}
 
 
 @app.get("/api/captures/recent_stats")
 async def recent_stats():
-    """近期统计"""
-    if not record_service:
-        return {"success": False, "data": {}}
+    """近期统计 - 使用缓存数据"""
     try:
-        data = record_service.get_recent_stats()
-        return {"success": True, "data": data}
+        from datetime import datetime, timedelta
+        capture_dir = os.path.join(os.path.dirname(__file__), "captures")
+        batches, _, _ = _get_cached_batches(capture_dir)
+        today = datetime.now()
+        daily_stats = {}
+        for i in range(7):
+            d = today - timedelta(days=i)
+            date_str = d.strftime('%Y-%m-%d')
+            daily_stats[date_str] = {'total': 0, 'defect': 0}
+        for batch in batches:
+            ts = batch.get('timestamp', '')
+            if ts and len(ts) >= 8:
+                # timestamp 格式: YYYYMMDD_HHMMSS_fff 或 ISO 格式
+                if 'T' in ts:
+                    try:
+                        date_str = ts[:10]
+                    except:
+                        continue
+                else:
+                    ymd = ts[:8]
+                    date_str = f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:8]}"
+                if date_str in daily_stats:
+                    daily_stats[date_str]['total'] += 1
+                    if batch.get('defects') and len(batch['defects']) > 0:
+                        daily_stats[date_str]['defect'] += 1
+        return {"success": True, "data": {'daily_stats': daily_stats}}
     except Exception as e:
         return {"success": False, "data": {}}
 
 
 @app.get("/api/captures/damage_ratio")
 async def damage_ratio():
-    """损伤占比"""
-    if not record_service:
-        return {"success": False, "data": {}}
+    """损伤占比 - 使用缓存数据（不再每次打开图片文件）"""
     try:
-        class_names = getattr(model_service, 'class_names', {}) if model_service else {}
-        data = record_service.get_damage_ratio(class_names)
-        return {"success": True, "data": data}
+        capture_dir = os.path.join(os.path.dirname(__file__), "captures")
+        batches, _, _ = _get_cached_batches(capture_dir)
+        damage = {}
+        for batch in batches:
+            for defect in batch.get('defects', []):
+                cls_name = defect.get('class_name', '未知')
+                bbox = defect.get('bbox', [0, 0, 0, 0])
+                if len(bbox) == 4:
+                    defect_area = max(0, (bbox[2] - bbox[0])) * max(0, (bbox[3] - bbox[1]))
+                else:
+                    defect_area = 0
+                # 使用默认图片尺寸估算（避免打开文件）
+                # 钢材检测典型尺寸 640x480
+                image_area = 640 * 480
+                area_ratio = (defect_area / image_area) * 100 if image_area > 0 else 0
+                if cls_name not in damage:
+                    damage[cls_name] = {'total_area_ratio': 0.0, 'count': 0}
+                damage[cls_name]['total_area_ratio'] += area_ratio
+                damage[cls_name]['count'] += 1
+        damage_ratio_result = {}
+        for name, stats in damage.items():
+            if stats['count'] > 0:
+                avg_ratio = stats['total_area_ratio'] / stats['count']
+                damage_ratio_result[name] = {
+                    'avg_area_ratio': round(avg_ratio, 2),
+                    'total_count': stats['count']
+                }
+        return {"success": True, "data": {'damage_ratio': damage_ratio_result}}
     except Exception as e:
         return {"success": False, "data": {}}
 
 
 @app.get("/api/captures/confidence_distribution")
 async def confidence_distribution():
-    """置信度分布"""
-    if not record_service:
-        return {"success": False, "data": {}}
+    """置信度分布 - 使用缓存数据"""
     try:
-        data = record_service.get_confidence_distribution()
-        return {"success": True, "data": data}
+        capture_dir = os.path.join(os.path.dirname(__file__), "captures")
+        batches, _, _ = _get_cached_batches(capture_dir)
+        bins = [
+            {'range': '0-20%', 'min': 0, 'max': 0.2, 'count': 0},
+            {'range': '20-40%', 'min': 0.2, 'max': 0.4, 'count': 0},
+            {'range': '40-60%', 'min': 0.4, 'max': 0.6, 'count': 0},
+            {'range': '60-80%', 'min': 0.6, 'max': 0.8, 'count': 0},
+            {'range': '80-100%', 'min': 0.8, 'max': 1.01, 'count': 0},
+        ]
+        total = 0
+        for batch in batches:
+            for defect in batch.get('defects', []):
+                conf = defect.get('confidence', 0)
+                total += 1
+                for b in bins:
+                    if b['min'] <= conf < b['max']:
+                        b['count'] += 1
+                        break
+        distribution = []
+        for b in bins:
+            pct = round(b['count'] / total * 100, 1) if total > 0 else 0
+            distribution.append({'range': b['range'], 'count': b['count'], 'percentage': pct})
+        return {"success": True, "data": {'distribution': distribution, 'total_defects': total}}
     except Exception as e:
         return {"success": False, "data": {}}
 
@@ -1224,6 +1478,7 @@ async def delete_capture(filename: str):
         return {"success": False, "error": "记录服务未就绪"}
     try:
         record_service.delete_capture(filename)
+        captures_cache.invalidate()
         return {"success": True}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -1242,6 +1497,7 @@ async def batch_delete_captures(request: Request):
             if ".." in fn or "/" in fn or "\\" in fn:
                 raise HTTPException(status_code=400, detail=f"无效的文件名: {fn}")
         record_service.batch_delete(filenames)
+        captures_cache.invalidate()
         return {"success": True}
     except HTTPException:
         raise
