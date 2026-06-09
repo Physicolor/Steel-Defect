@@ -14,7 +14,22 @@
       "Bash(ls -d check_dependencies.py)",
       "Bash(python -c \"import py_compile; py_compile.compile\\('app.py', doraise=True\\); print\\('app.py 语法检查通过'\\)\")",
       "Bash(python -c \"import py_compile; py_compile.compile\\('app.py', doraise=True\\); print\\('语法检查通过'\\)\")",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(pip install *)",
+      "Bash(conda info *)",
+      "Read(//d/Users/12404/anaconda3/envs/**)",
+      "Read(//d/Users/12404/Anaconda3/envs/**)",
+      "Read(//c/Users/12404/anaconda3/**)",
+      "Read(//c/ProgramData/anaconda3/**)",
+      "Bash(\"D:/Users/12404/anaconda3/envs/torch/python\" -m pip install django mysqlclient)",
+      "Bash(mysql --version)",
+      "Bash(sc query *)",
+      "Bash(\"D:/Users/12404/anaconda3/envs/torch/python\" manage.py makemigrations detection)",
+      "Bash(\"D:/Users/12404/anaconda3/envs/torch/python\" manage.py migrate)",
+      "Bash(\"D:/Users/12404/anaconda3/envs/torch/python\" manage.py runserver 0.0.0.0:5000)",
+      "Bash(curl -s http://127.0.0.1:5000/health/)",
+      "Bash(curl *)",
+      "Bash(D:/Users/12404/anaconda3/envs/torch/python manage.py shell -c ' *)"
     ]
   }
 }

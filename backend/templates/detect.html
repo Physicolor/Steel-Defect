@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>图片检测 - 钢材缺陷检测系统</title>
+    
+    <!-- HarmonyOS Sans 字体 -->
+    <style>
+        @font-face {
+            font-family: 'HarmonyOS Sans';
+            src: local('HarmonyOS Sans SC'), local('HarmonyOS_Sans_SC');
+            font-weight: 300 700;
+            font-display: swap;
+        }
+    </style>
+    
+    <!-- 主样式 -->
+    <link rel="stylesheet" href="/static/style.css" />
+    
+    <meta name="robots" content="noindex,nofollow">
+    
+    <style>
+        /* 返回按钮样式 */
+        .nav-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-md);
+            gap: var(--spacing-md);
+            flex-wrap: wrap;
+        }
+        
+        .nav-header .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: 10px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all var(--transition-fast);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .nav-header .back-link:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .reset-btn {
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .reset-btn:hover {
+            background: #B91C1C;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        /* 图片大小调节器 */
+        .image-size-control {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            padding: var(--spacing-md);
+            background: var(--bg-elevated);
+            border-radius: var(--radius-md);
+            margin-top: var(--spacing-lg);
+            margin-bottom: var(--spacing-md);
+            border: 1px solid var(--border);
+        }
+        
+        .image-size-control label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        
+        .image-size-control input[type="range"] {
+            flex: 1;
+            max-width: 200px;
+            height: 6px;
+            -webkit-appearance: none;
+            background: var(--border);
+            border-radius: 3px;
+            outline: none;
+        }
+        
+        .image-size-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .image-size-control .size-value {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary);
+            min-width: 60px;
+            text-align: right;
+        }
+        
+        /* 响应式图片 */
+        .result-image {
+            width: var(--image-width, 300px);
+            max-width: 100%;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            margin-bottom: var(--spacing-md);
+            transition: width var(--transition-normal);
+        }
+        
+        /* AI分析按钮样式 */
+        .ai-analysis-section {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            padding: var(--spacing-md);
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(168, 85, 247, 0.05));
+            border-radius: var(--radius-md);
+            margin-top: var(--spacing-lg);
+            margin-bottom: var(--spacing-md);
+            border: 1px solid var(--primary-light);
+        }
+        
+        .ai-analyze-btn {
+            /* 使用与 .btn.primary 相同的样式，不需要额外定义 */
+        }
+        
+        .llm-status-indicator {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .llm-status-indicator.ready {
+            color: var(--success);
+        }
+        
+        .llm-status-indicator.error {
+            color: var(--danger);
+        }
+        
+        /* AI分析结果区域 */
+        .ai-analysis-result {
+            margin-top: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+            padding: var(--spacing-lg);
+            background: var(--bg-elevated);
+            border-radius: var(--radius-md);
+            border: 2px solid var(--primary-light);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .ai-result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-md);
+            padding-bottom: var(--spacing-sm);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .ai-result-header h4 {
+            margin: 0;
+            color: var(--primary);
+            font-size: 16px;
+        }
+        
+        .close-btn {
+            background: transparent;
+            border: none;
+            font-size: 24px;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-sm);
+            transition: all var(--transition-fast);
+        }
+        
+        .close-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
+        .ai-loading {
+            text-align: center;
+            padding: var(--spacing-xl);
+            color: var(--text-secondary);
+        }
+        
+        .ai-loading .spinner {
+            margin: 0 auto var(--spacing-md);
+        }
+        
+        .ai-content {
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+        
+        .ai-content h3, .ai-content h4, .ai-content h5 {
+            color: var(--primary);
+            margin-top: var(--spacing-lg);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .ai-content p {
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .ai-content ul, .ai-content ol {
+            margin-left: var(--spacing-lg);
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .ai-content li {
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        .ai-content strong {
+            color: var(--primary-dark);
+            font-weight: 600;
+        }
+        
+        .ai-content code {
+            background: var(--bg-card);
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+            font-size: 0.9em;
+        }
+        
+        /* AI分析结果 */
+        .ai-analysis-result {
+            margin-top: var(--spacing-lg);
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- 顶部导航 -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="logo">
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 12L20 6L32 12V28L20 34L8 28V12Z" fill="currentColor" opacity="0.9"/>
+                        <path d="M8 12L20 18L32 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M20 18V34" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M8 12V28L20 34" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M32 12V28L20 34" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <line x1="12" y1="15" x2="12" y2="25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                        <line x1="28" y1="15" x2="28" y2="25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                    </svg>
+                </div>
+                <div class="title">
+                    <h1>钢材缺陷检测系统</h1>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="profile-btn" title="个人中心" onclick="window.location.href='/profile'">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                </button>
+                <button class="folder-btn" title="检测记录" onclick="window.location.href='/captures'">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                </button>
+                <button class="settings-btn" title="设置">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- 导航栏 -->
+        <div class="nav-header">
+            <a href="/" class="back-link">← 返回首页</a>
+        </div>
+
+        <div class="detect-container">
+            <!-- 左侧面板:上传/图片显示 -->
+            <section class="upload-panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 style="margin: 0;">📤 上传图片</h3>
+                    <button id="detectBtn" class="btn primary" hidden>🔍 开始检测</button>
+                </div>
+                <p class="muted" style="margin-bottom: 12px;">支持 JPG、PNG、BMP 格式</p>
+
+                <!-- 模型切换 -->
+                <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-elevated); border-radius: var(--radius-md); border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label class="label-inline" style="display: block; margin-bottom: 4px;">
+                                <span>选择模型</span>
+                            </label>
+                            <select id="modelSelect" class="select" style="width: 100%;">
+                                <option value="yolo">YOLO 模型</option>
+                                <option value="unet">UNet 模型</option>
+                                <option value="custom">自定义模型路径</option>
+                            </select>
+                        </div>
+                        <button id="applyModelBtn" class="btn primary" style="margin-top: 20px;">✅ 应用模型</button>
+                    </div>
+                    <div id="modelInfo" style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+                        当前模型：YOLO 模型
+                    </div>
+                    <div id="customModelPathContainer" style="margin-top: 8px; display: none;">
+                        <input type="text" id="customModelPath" placeholder="请输入模型完整路径" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px;" />
+                    </div>
+                </div>
+
+                <!-- 上传区域 -->
+                <div class="upload-zone" id="uploadZone">
+                    <div style="font-size: 48px; color: var(--text-muted); margin-bottom: 8px;">📁</div>
+                    <div style="font-size: 14px; color: var(--text-secondary);">点击或拖拽图片到此处</div>
+                    <div class="muted" style="margin-top: 4px;">JPG / PNG / BMP</div>
+                </div>
+                <input type="file" id="fileInput" accept="image/*" multiple style="display: none" />
+                
+                <!-- 图片显示区域(原图+标注图+热力图并排) -->
+                <div class="images-container" id="imagesContainer" hidden>
+                    <button class="nav-arrow prev-arrow" id="prevImageBtn" hidden>&lt;</button>
+                    <div class="image-wrapper">
+                        <button class="clear-image-btn" id="clearImageBtn" title="清除图片，重新上传">×</button>
+                        <img id="originalImageDisplay" alt="原图" />
+                        <div class="image-label" id="imageLabel">原图</div>
+                    </div>
+                    <div class="image-wrapper" id="annotatedImageWrapper" hidden>
+                        <img id="annotatedImageDisplay" alt="标注图" />
+                        <div class="image-label">标注图</div>
+                    </div>
+                    <div class="image-wrapper" id="heatmapImageWrapper" hidden>
+                        <img id="heatmapImageDisplay" alt="热力图" />
+                        <div class="image-label">热力图</div>
+                    </div>
+                    <button class="nav-arrow next-arrow" id="nextImageBtn" hidden>&gt;</button>
+                </div>
+
+                <!-- 进度条 -->
+                <div class="progress-container" id="progressContainer" hidden>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">准备中...</div>
+                </div>
+
+                <!-- 检测数据表格 -->
+                <div id="detectionDataSection" class="detection-data-section" hidden>
+                    <h4 style="margin: 16px 0 12px 0; color: var(--primary); font-size: 15px;">📋 检测数据</h4>
+                    <div id="resultContent"></div>
+                </div>
+
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <div style="margin-top: 8px; color: var(--text-muted);">检测中，请稍候...</div>
+                </div>
+
+                <div id="statusText" class="status-text" hidden></div>
+            </section>
+
+            <!-- 右侧面板:AI分析报告 -->
+            <section class="result-panel">
+                <h3>🤖 AI分析报告</h3>
+                
+                <!-- AI分析按钮 -->
+                <div id="aiAnalysisSection" class="ai-analysis-section" hidden>
+                    <button id="analyzeWithLLMBtn" class="btn primary">
+                        🤖 开始AI分析
+                    </button>
+                    <div id="llmStatusIndicator" class="llm-status-indicator"></div>
+                </div>
+                
+                <!-- AI分析结果 -->
+                <div id="aiAnalysisResult" class="ai-analysis-result" style="display: none;">
+                    <div class="ai-result-header">
+                        <h4>📊 分析结果</h4>
+                        <button id="closeAIResult" class="close-btn">×</button>
+                    </div>
+                    <div id="aiAnalysisLoading" class="ai-loading" hidden>
+                        <div class="spinner"></div>
+                        <div>正在调用AI进行分析，请稍候...</div>
+                    </div>
+                    <div id="aiAnalysisContent" class="ai-content"></div>
+                </div>
+                
+                <div id="emptyState" class="empty-state">
+                    <div style="text-align: center; padding: 60px 0; color: var(--text-muted);">
+                        <div style="font-size: 48px; margin-bottom: 12px;">🤖</div>
+                        <div>上传图片并检测后可进行AI智能分析</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <footer class="footer">
+            钢材缺陷检测系统 · YOLO 目标检测 + UNet 语义分割
+        </footer>
+    </div>
+
+    <script>
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const detectBtn = document.getElementById('detectBtn');
+        const loading = document.getElementById('loading');
+        const statusText = document.getElementById('statusText');
+        const resultContent = document.getElementById('resultContent');
+        const modelSelect = document.getElementById('modelSelect');
+        const applyModelBtn = document.getElementById('applyModelBtn');
+        const modelInfo = document.getElementById('modelInfo');
+        
+        // 图片显示相关
+        const imagesContainer = document.getElementById('imagesContainer');
+        const originalImageDisplay = document.getElementById('originalImageDisplay');
+        const clearImageBtn = document.getElementById('clearImageBtn');
+        const annotatedImageWrapper = document.getElementById('annotatedImageWrapper');
+        const annotatedImageDisplay = document.getElementById('annotatedImageDisplay');
+        const heatmapImageWrapper = document.getElementById('heatmapImageWrapper');
+        const heatmapImageDisplay = document.getElementById('heatmapImageDisplay');
+        const detectionDataSection = document.getElementById('detectionDataSection');
+        
+        // AI分析相关元素
+        const analyzeWithLLMBtn = document.getElementById('analyzeWithLLMBtn');
+        const aiAnalysisSection = document.getElementById('aiAnalysisSection');
+        const aiAnalysisResult = document.getElementById('aiAnalysisResult');
+        const aiAnalysisLoading = document.getElementById('aiAnalysisLoading');
+        const aiAnalysisContent = document.getElementById('aiAnalysisContent');
+        const closeAIResult = document.getElementById('closeAIResult');
+        const llmStatusIndicator = document.getElementById('llmStatusIndicator');
+        const emptyState = document.getElementById('emptyState');
+
+        let selectedFile = null;
+        let lastResult = null; // 保存最后的检测结果
+        let llmServiceReady = false; // LLM服务状态
+        let uploadedFiles = []; // 存储上传的多张图片
+        let currentImageIndex = 0; // 当前查看的图片索引
+        let detectionResults = {}; // 存储每张图片的检测结果
+
+        // 从 sessionStorage 恢复状态
+        function restoreState() {
+            const savedResult = sessionStorage.getItem('detect_lastResult');
+            
+            if (savedResult) {
+                lastResult = JSON.parse(savedResult);
+                // 如果有检测结果,显示原图、标注图和热力图
+                if (lastResult.image_base64 && lastResult.original_image_base64) {
+                    // 显示原图
+                    originalImageDisplay.src = `data:image/jpeg;base64,${lastResult.original_image_base64}`;
+                    // 显示标注图
+                    annotatedImageDisplay.src = `data:image/jpeg;base64,${lastResult.image_base64}`;
+                    annotatedImageWrapper.hidden = false;
+                    
+                    // 显示热力图
+                    if (lastResult.heatmap_base64) {
+                        heatmapImageDisplay.src = `data:image/jpeg;base64,${lastResult.heatmap_base64}`;
+                        heatmapImageWrapper.hidden = false;
+                    }
+                    
+                    renderResult(lastResult);
+                    detectionDataSection.hidden = false;
+                    emptyState.style.display = 'none';
+                    detectBtn.hidden = true;
+                    
+                    // 隐藏上传区域，显示图片容器
+                    uploadZone.hidden = true;
+                    imagesContainer.hidden = false;
+                    
+                    // 显示AI分析按钮
+                    aiAnalysisSection.hidden = false;
+                }
+            }
+        }
+
+        // 保存状态到 sessionStorage
+        function saveState() {
+            if (selectedFile) {
+                sessionStorage.setItem('detect_selectedFile', selectedFile.name);
+            }
+            if (lastResult) {
+                sessionStorage.setItem('detect_lastResult', JSON.stringify(lastResult));
+            }
+        }
+
+        // 显示原图(上传后)
+        function showOriginalImage(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                originalImageDisplay.src = e.target.result;
+                imagesContainer.hidden = false;
+                uploadZone.hidden = true;
+                // 隐藏标注图和热力图
+                annotatedImageWrapper.hidden = true;
+                heatmapImageWrapper.hidden = true;
+                // 隐藏检测数据
+                detectionDataSection.hidden = true;
+                // 显示检测按钮
+                detectBtn.hidden = false;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 清除图片,返回上传状态
+        function clearImage() {
+            selectedFile = null;
+            lastResult = null;
+            originalImageDisplay.src = '';
+            annotatedImageDisplay.src = '';
+            heatmapImageDisplay.src = '';
+            imagesContainer.hidden = true;
+            uploadZone.hidden = false;
+            detectBtn.hidden = true;
+            
+            // 隐藏检测数据和AI分析
+            detectionDataSection.hidden = true;
+            statusText.hidden = true;
+            aiAnalysisSection.hidden = true;
+            
+            // 清空内容
+            resultContent.innerHTML = '';
+            aiAnalysisContent.innerHTML = '';
+            aiAnalysisResult.style.display = 'none';
+            emptyState.style.display = 'flex';
+            
+            // 清除 sessionStorage
+            sessionStorage.removeItem('detect_selectedFile');
+            sessionStorage.removeItem('detect_lastResult');
+            
+            showStatus('已清除,请重新上传图片', 'info');
+        }
+
+        // 清除按钮事件
+        clearImageBtn.addEventListener('click', clearImage);
+
+        // 更新当前模型状态显示
+        function updateModelInfo(fileName, modelType, device) {
+            modelInfo.innerHTML = `
+                <div><strong>当前模型：</strong>${fileName}</div>
+                <div class="muted" style="margin-top: 2px;">类型: ${modelType.toUpperCase()} | 设备: ${device}</div>
+            `;
+        }
+
+        // 获取模型路径
+        async function getModelPath(modelType) {
+            try {
+                const res = await fetch('/model_status');
+                const data = await res.json();
+                
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || '获取模型状态失败');
+                }
+                
+                if (modelType === 'yolo') {
+                    return data.model.weights_path;
+                } else if (modelType === 'unet') {
+                    return data.model.unet_weights_path;
+                }
+                
+                return null;
+            } catch (err) {
+                console.error('获取模型路径失败:', err);
+                return null;
+            }
+        }
+
+        // 监听模型选择变化
+        modelSelect.addEventListener('change', (e) => {
+            const selectedValue = e.target.value;
+            const customModelPathContainer = document.getElementById('customModelPathContainer');
+            
+            if (selectedValue === 'custom') {
+                customModelPathContainer.style.display = 'block';
+            } else {
+                customModelPathContainer.style.display = 'none';
+            }
+        });
+
+        // 应用模型切换
+        async function applyModel(modelType) {
+            if (!modelType) {
+                showStatus('请先选择模型类型', 'error');
+                return;
+            }
+
+            applyModelBtn.disabled = true;
+            applyModelBtn.textContent = '切换中...';
+            modelInfo.innerHTML = '<span style="color: var(--text-muted);">⏳ 正在切换模型...</span>';
+
+            try {
+                let weightsPath = '';
+                
+                if (modelType === 'custom') {
+                    const customPath = document.getElementById('customModelPath').value.trim();
+                    if (!customPath) {
+                        showStatus('请输入自定义模型路径', 'error');
+                        return;
+                    }
+                    weightsPath = customPath;
+                } else {
+                    weightsPath = await getModelPath(modelType);
+                    if (!weightsPath) {
+                        throw new Error('无法获取模型路径');
+                    }
+                }
+
+                const endpoint = '/set_model_weights';
+                const paramName = 'weights_path';
+                
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [paramName]: weightsPath })
+                });
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || '模型切换失败');
+                }
+
+                const rawPath = data.weights_path || data.unet_weights_path;
+                // 从完整路径中提取文件名
+                const fileName = rawPath ? rawPath.split(/[\\/]/).pop() : '未知模型';
+                const typeLabel = modelType === 'yolo' ? '(YOLO)' : modelType === 'unet' ? '(UNet)' : '';
+                
+                modelInfo.innerHTML = `
+                    <div style="color: var(--success);"><strong>✅ 切换成功</strong></div>
+                    <div><strong>当前模型：</strong>${fileName} <span class="muted">${typeLabel}</span></div>
+                    <div class="muted" style="margin-top: 2px;">类别数: ${data.class_count || 0}</div>
+                `;
+                
+                // 更新选项选中状态
+                if (modelType === 'yolo') {
+                    modelSelect.selectedIndex = 0;
+                } else if (modelType === 'unet') {
+                    modelSelect.selectedIndex = 1;
+                } else if (modelType === 'custom') {
+                    modelSelect.selectedIndex = 2;
+                }
+                
+                showStatus('模型切换成功', 'success');
+            } catch (err) {
+                modelInfo.innerHTML = '<span style="color: var(--danger);">❌ 切换失败: ' + err.message + '</span>';
+                showStatus('模型切换失败: ' + err.message, 'error');
+            } finally {
+                applyModelBtn.disabled = false;
+                applyModelBtn.textContent = '✅ 应用模型';
+            }
+        }
+
+        applyModelBtn.addEventListener('click', async () => {
+            await applyModel(modelSelect.value);
+        });
+
+        // 上传事件
+        uploadZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFiles(e.target.files);
+        });
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+        });
+
+        function handleFiles(files) {
+            uploadedFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+            if (uploadedFiles.length === 0) {
+                showStatus('请上传图片文件', 'error');
+                return;
+            }
+            
+            statusText.hidden = true;
+            currentImageIndex = 0;
+            detectionResults = {};
+            
+            // 更新标签显示
+            const imageLabel = document.getElementById('imageLabel');
+            if (imageLabel) {
+                imageLabel.textContent = `已导入 ${uploadedFiles.length} 张图片`;
+            }
+            
+            // 显示第一张原图
+            showOriginalImage(uploadedFiles[0]);
+            updateNavArrows();
+            saveState();
+        }
+
+        function updateNavArrows() {
+            const prevBtn = document.getElementById('prevImageBtn');
+            const nextBtn = document.getElementById('nextImageBtn');
+            if (uploadedFiles.length > 1) {
+                prevBtn.hidden = false;
+                nextBtn.hidden = false;
+            } else {
+                prevBtn.hidden = true;
+                nextBtn.hidden = true;
+            }
+        }
+
+        // 导航箭头事件
+        document.getElementById('prevImageBtn').addEventListener('click', () => {
+            if (currentImageIndex > 0) {
+                currentImageIndex--;
+                showCurrentImage();
+            }
+        });
+
+        document.getElementById('nextImageBtn').addEventListener('click', () => {
+            if (currentImageIndex < uploadedFiles.length - 1) {
+                currentImageIndex++;
+                showCurrentImage();
+            }
+        });
+
+        function showCurrentImage() {
+            const file = uploadedFiles[currentImageIndex];
+            showOriginalImage(file);
+            
+            // 如果这张图片已经有检测结果，则显示结果
+            if (detectionResults[currentImageIndex]) {
+                const data = detectionResults[currentImageIndex];
+                annotatedImageDisplay.src = `data:image/jpeg;base64,${data.image_base64}`;
+                annotatedImageWrapper.hidden = false;
+                
+                if (data.heatmap_base64) {
+                    heatmapImageDisplay.src = `data:image/jpeg;base64,${data.heatmap_base64}`;
+                    heatmapImageWrapper.hidden = false;
+                }
+                renderResult(data);
+                detectionDataSection.hidden = false;
+                emptyState.style.display = 'none';
+                aiAnalysisSection.hidden = false;
+            } else {
+                // 没有结果则隐藏标注图和热力图
+                annotatedImageWrapper.hidden = true;
+                heatmapImageWrapper.hidden = true;
+                detectionDataSection.hidden = true;
+                aiAnalysisSection.hidden = true;
+            }
+            updateNavArrows();
+        }
+
+        detectBtn.addEventListener('click', async () => {
+            if (uploadedFiles.length === 0) return;
+            
+            loading.classList.add('active');
+            statusText.hidden = true;
+            detectBtn.hidden = true;
+            
+            // 显示进度条
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            progressContainer.hidden = false;
+            
+            for (let i = 0; i < uploadedFiles.length; i++) {
+                const file = uploadedFiles[i];
+                currentImageIndex = i;
+                showCurrentImage();
+                
+                progressText.textContent = `正在检测第 ${i + 1} / ${uploadedFiles.length} 张图片...`;
+                progressFill.style.width = `${((i) / uploadedFiles.length) * 100}%`;
+                
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const res = await fetch('/detect_image', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+
+                    if (!data.success) {
+                        showStatus(`图片 ${i + 1} 检测失败: ${data.error}`, 'error');
+                        continue;
+                    }
+
+                    detectionResults[i] = data;
+                    lastResult = data;
+                    
+                    // 保存原图的base64
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        lastResult.original_image_base64 = e.target.result.split(',')[1];
+                        
+                        // 显示标注图
+                        annotatedImageDisplay.src = `data:image/jpeg;base64,${data.image_base64}`;
+                        annotatedImageWrapper.hidden = false;
+                        
+                        // 显示热力图
+                        if (data.heatmap_base64) {
+                            heatmapImageDisplay.src = `data:image/jpeg;base64,${data.heatmap_base64}`;
+                            heatmapImageWrapper.hidden = false;
+                        }
+                        
+                        renderResult(data);
+                        detectionDataSection.hidden = false;
+                        emptyState.style.display = 'none';
+                        aiAnalysisSection.hidden = false;
+                    };
+                    reader.readAsDataURL(file);
+                } catch (err) {
+                    showStatus(`图片 ${i + 1} 请求失败: ${err.message}`, 'error');
+                }
+                
+                progressFill.style.width = `${((i + 1) / uploadedFiles.length) * 100}%`;
+            }
+            
+            loading.classList.remove('active');
+            progressContainer.hidden = true;
+            showStatus('所有图片检测完成', 'success');
+            updateNavArrows();
+        });
+
+        // AI分析功能
+        analyzeWithLLMBtn.addEventListener('click', async () => {
+            if (!lastResult || !lastResult.image_base64) {
+                showStatus('请先进行图片检测', 'error');
+                return;
+            }
+
+            // 显示分析结果区域
+            aiAnalysisResult.style.display = 'block';
+            aiAnalysisLoading.hidden = false;
+            aiAnalysisContent.innerHTML = '';
+            analyzeWithLLMBtn.disabled = true;
+            analyzeWithLLMBtn.textContent = '⏳ 分析中...';
+
+            try {
+                const response = await fetch('/analyze_with_llm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image_base64: lastResult.image_base64,
+                        detections: lastResult.detections || [],
+                        model_type: lastResult.model_type || 'yolo'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'AI分析失败');
+                }
+
+                // 渲染分析结果
+                renderAIAnalysis(data.analysis);
+                showStatus('AI分析完成', 'success');
+
+            } catch (err) {
+                aiAnalysisContent.innerHTML = `
+                    <div style="color: var(--danger); padding: 20px; text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 12px;">❌</div>
+                        <div><strong>分析失败</strong></div>
+                        <div style="margin-top: 8px; font-size: 13px;">${err.message}</div>
+                    </div>
+                `;
+                showStatus('AI分析失败: ' + err.message, 'error');
+            } finally {
+                aiAnalysisLoading.hidden = true;
+                analyzeWithLLMBtn.disabled = false;
+                analyzeWithLLMBtn.textContent = '🤖 AI智能分析';
+            }
+        });
+
+        // 关闭AI分析结果
+        closeAIResult.addEventListener('click', () => {
+            aiAnalysisContent.innerHTML = '';
+            aiAnalysisResult.style.display = 'none';
+        });
+
+        // 检查LLM服务状态
+        async function checkLLMStatus() {
+            try {
+                const res = await fetch('/llm_status');
+                const data = await res.json();
+                
+                if (data.available && data.connected) {
+                    llmServiceReady = true;
+                    llmStatusIndicator.className = 'llm-status-indicator ready';
+                    llmStatusIndicator.textContent = '✓ AI服务就绪';
+                } else {
+                    llmServiceReady = false;
+                    llmStatusIndicator.className = 'llm-status-indicator error';
+                    llmStatusIndicator.textContent = '✗ AI服务不可用';
+                }
+            } catch (err) {
+                llmServiceReady = false;
+                llmStatusIndicator.className = 'llm-status-indicator error';
+                llmStatusIndicator.textContent = '✗ 无法连接AI服务';
+            }
+        }
+
+        // 渲染AI分析结果
+        function renderAIAnalysis(analysisText) {
+            // 将Markdown格式的文本转换为HTML
+            let html = analysisText
+                // 处理标题
+                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                .replace(/^## (.*$)/gim, '<h3>$1</h3>')
+                .replace(/^# (.*$)/gim, '<h4>$1</h4>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                // 处理列表
+                .replace(/^\- (.*$)/gim, '<li>$1</li>')
+                .replace(/^\d+\. (.*$)/gim, '<li>$1</li>')
+                // 处理换行
+                .replace(/\n/g, '<br>');
+            
+            // 将连续的<li>包裹在<ul>中
+            html = html.replace(/(<li>.*<\/li>)/gims, '<ul>$1</ul>');
+            // 移除重复的<ul>标签
+            html = html.replace(/<\/ul>\s*<ul>/g, '');
+            
+            aiAnalysisContent.innerHTML = html;
+        }
+
+        // 页面加载时检查LLM状态
+        checkLLMStatus();
+
+        function renderResult(data) {
+            // 渲染检测结果表格
+            let html = '';
+            const dets = data.detections || [];
+            html += `<div style="margin-bottom: 16px;"><strong>检测到 ${dets.length} 个缺陷</strong>`;
+            if (data.image_size) {
+                html += ` <span class="muted">(图片尺寸: ${data.image_size[0]} × ${data.image_size[1]})</span>`;
+            }
+            html += `</div>`;
+
+            if (dets.length > 0) {
+                html += `<table class="det-table">
+                    <thead><tr>
+                        <th>序号</th><th>缺陷类型</th><th>置信度</th><th>位置</th>
+                    </tr></thead><tbody>`;
+
+                dets.forEach((det, i) => {
+                    const confPct = det.confidence != null ? (det.confidence * 100).toFixed(1) : '-';
+                    const barW = det.confidence ? Math.max(4, det.confidence * 80) : 0;
+                    const posInfo = det.bbox ? det.bbox.join(', ') : (det.area != null ? `面积: ${det.area}px²` : '-');
+                    html += `<tr>
+                        <td>${i + 1}</td>
+                        <td>${det.class_name}</td>
+                        <td>${confPct}% <span class="conf-bar" style="width:${barW}px"></span></td>
+                        <td class="muted">${posInfo}</td>
+                    </tr>`;
+                });
+                html += `</tbody></table>`;
+            } else {
+                html += `<div class="muted" style="margin-top: 8px;">未检测到缺陷</div>`;
+            }
+
+            resultContent.innerHTML = html;
+        }
+
+        function showStatus(msg, type) {
+            statusText.textContent = msg;
+            statusText.className = 'status-text ' + type;
+            statusText.hidden = false;
+        }
+
+        // 初始化 - 直接显示默认模型，无需异步加载
+        // 默认选中第一个模型（YOLO）
+        modelSelect.selectedIndex = 0;
+        restoreState();
+        
+        // 页面离开时保存状态
+        window.addEventListener('beforeunload', saveState);
+    </script>
+</body>
+</html>

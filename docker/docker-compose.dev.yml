@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # 后端服务（开发模式）
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: steel-backend-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend:/app
+      - ../data:/app/data
+      - ../uploads:/app/uploads
+      - ../captures:/app/captures
+      - ../logs:/app/logs
+      - ../models:/app/models
+    environment:
+      - DEBUG=True
+      - HOST=0.0.0.0
+      - PORT=8000
+      - CHROMADB_HOST=chromadb
+      - CHROMADB_PORT=8000
+      - SECRET_KEY=steel-defect-secret-key-dev
+      - DATABASE_URL=sqlite:///./data/steel_defect.db
+    depends_on:
+      - chromadb
+    networks:
+      - steel-network-dev
+    restart: unless-stopped
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # 前端服务（开发模式）
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    container_name: steel-frontend-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - steel-network-dev
+    restart: unless-stopped
+    command: npm start
+
+  # ChromaDB服务
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: steel-chromadb-dev
+    ports:
+      - "8001:8000"
+    volumes:
+      - ../data/chromadb:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - ANONYMIZED_TELEMETRY=FALSE
+    networks:
+      - steel-network-dev
+    restart: unless-stopped
+
+networks:
+  steel-network-dev:
+    driver: bridge

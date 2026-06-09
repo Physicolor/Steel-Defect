@@ -1,6 +1,5 @@
-# Web框架
-flask>=2.3.0
-werkzeug>=2.3.0
+# Web框架 - Django
+Django>=4.2,<5.1
 
 # 环境变量管理
 python-dotenv>=1.0.0

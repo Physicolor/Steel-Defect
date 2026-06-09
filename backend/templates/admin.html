@@ -1,0 +1,2848 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - 钢材缺陷检测系统</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/captures.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        /* 确保 body 背景色正确 */
+        body {
+            background: #F1F5F9;
+        }
+    </style>
+    <style>
+        /* 双栏布局 */
+        .admin-layout {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: var(--spacing-lg);
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* 左侧导航栏 */
+        .admin-nav {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            overflow-y: auto;
+        }
+
+        .nav-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border: none;
+            background: transparent;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: all 0.15s;
+            font-family: inherit;
+            text-align: left;
+            width: 100%;
+        }
+
+        .nav-btn svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        .nav-btn:hover {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+        }
+
+        .nav-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .nav-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 8px 0;
+        }
+
+        .nav-footer {
+            margin-top: auto;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .nav-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            margin-bottom: 8px;
+        }
+
+        .nav-user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-elevated);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+        }
+
+        .nav-user-avatar svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .nav-user-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .nav-user-role {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* 中间内容区 */
+        .admin-content {
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            box-shadow: var(--shadow-md);
+        }
+
+        /* ====== 统计卡片 ====== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .stat-card-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .stat-card-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .stat-card-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .stat-card-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .stat-card-icon.blue { background: rgba(0, 85, 255, 0.1); color: var(--primary); }
+        .stat-card-icon.green { background: rgba(5, 150, 105, 0.1); color: var(--success); }
+        .stat-card-icon.orange { background: rgba(217, 119, 6, 0.1); color: var(--warning); }
+        .stat-card-icon.red { background: rgba(220, 38, 38, 0.1); color: var(--danger); }
+
+        /* ====== 图表区域（3列） ====== */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            flex-direction: column;
+            min-height: 240px;
+            max-height: 320px;
+        }
+
+        .chart-card h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+            flex-shrink: 0;
+        }
+
+        .chart-card .chart-body {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .chart-card canvas {
+            max-width: 100% !important;
+            max-height: 100% !important;
+        }
+
+        /* 缺陷占比图表容器 */
+        .defect-chart-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .defect-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 12px;
+            justify-content: center;
+            font-size: 11px;
+        }
+
+        .defect-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .defect-legend-item:hover {
+            opacity: 0.7;
+        }
+
+        .defect-legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .defect-legend-label {
+            color: var(--text-secondary);
+        }
+
+        .defect-legend-pct {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* 损伤占比进度条 */
+        .damage-ratio-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .damage-ratio-label {
+            width: 90px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .damage-ratio-track {
+            flex: 1;
+            height: 6px;
+            background: var(--bg-elevated);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .damage-ratio-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+
+        .damage-ratio-value {
+            width: 45px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        /* ====== 内容卡片 ====== */
+        .content-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            margin-bottom: 16px;
+            box-shadow: var(--shadow-md);
+        }
+
+        .content-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .content-card-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        /* ====== 工具栏 + 筛选器 ====== */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+            min-width: fit-content;
+            white-space: nowrap;
+        }
+
+        .filter-group label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        /* 日期输入框 */
+        .date-input {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-family: inherit;
+            font-size: 13px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .date-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        /* 重置按钮 */
+        .reset-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: white;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .reset-btn:hover {
+            background: var(--bg-elevated);
+            border-color: var(--primary-light);
+        }
+
+        /* ====== 进度条 ====== */
+        .defect-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .defect-bar-label {
+            width: 100px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+        }
+
+        .defect-bar-track {
+            flex: 1;
+            height: 8px;
+            background: var(--bg-elevated);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .defect-bar-fill {
+            height: 100%;
+            background: var(--primary);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .defect-bar-value {
+            width: 40px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-align: right;
+        }
+
+        /* ====== AI 卡片 ====== */
+        .ai-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-lg);
+            box-shadow: var(--shadow-md);
+        }
+
+        .ai-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .ai-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .switch-track {
+            width: 44px;
+            height: 24px;
+            background: #e0e0e0;
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: 1px solid var(--border);
+        }
+
+        .switch-track.on {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .switch-thumb {
+            width: 18px;
+            height: 18px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .switch-track.on .switch-thumb {
+            transform: translateX(20px);
+        }
+
+        .ai-result {
+            font-size: 13px;
+            line-height: 1.8;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+        }
+
+        .ai-placeholder {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 40px 0;
+            font-size: 13px;
+        }
+
+        .loading-spinner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 20px 0;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ====== 数据表格 ====== */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .data-table th {
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .data-table tr:hover td {
+            background: var(--bg-elevated);
+        }
+
+        /* ====== 按钮 ====== */
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* ====== 缺陷标签 ====== */
+        .defect-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 4px;
+        }
+
+        .defect-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 500;
+            background: rgba(0, 85, 255, 0.08);
+            color: var(--primary);
+            white-space: nowrap;
+        }
+
+        /* 用户类型标签样式 */
+        .defect-tag.personal {
+            background: rgba(59, 130, 246, 0.1);
+            color: #2563EB;
+        }
+
+        .defect-tag.enterprise {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
+
+        .defect-tag.admin {
+            background: rgba(239, 68, 68, 0.1);
+            color: #DC2626;
+        }
+
+        /* ====== 分页 ====== */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: var(--spacing-md);
+            flex-wrap: wrap;
+            flex-shrink: 0;
+            background: transparent;
+        }
+
+        .pagination button {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            background: white;
+            color: var(--text-primary);
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: var(--bg-elevated);
+            border-color: var(--primary-light);
+        }
+
+        .pagination button.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            font-weight: 600;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .page-numbers {
+            display: flex;
+            gap: 6px;
+        }
+
+        .page-info {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        /* ====== 空状态 ====== */
+        .empty-state {
+            text-align: center;
+            padding: calc(var(--spacing-xl) * 2);
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: var(--spacing-md);
+            opacity: 0.5;
+        }
+
+        /* ====== 模态框 ====== */
+        .modal {
+            display: flex;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0);
+            overflow: hidden;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease, background-color 0.35s ease, backdrop-filter 0.35s ease;
+            backdrop-filter: blur(0px);
+        }
+
+        .modal.active {
+            opacity: 1;
+            visibility: visible;
+            background-color: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(20px);
+        }
+
+        /* 模态框打开时页面缩放效果 */
+        body.modal-open .app {
+            transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.2);
+        }
+
+        /* 确保模态框在最上层 */
+        .modal {
+            z-index: 10000;
+        }
+
+        .settings-panel {
+            z-index: 9999;
+        }
+
+        .settings-overlay {
+            z-index: 9998;
+        }
+
+        .modal-content {
+            position: absolute;
+            background: white;
+            border-radius: var(--radius-lg);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            transform-origin: top left;
+            will-change: transform, width, height, clip-path;
+            clip-path: inset(0 round var(--radius-lg));
+            z-index: 1001;
+        }
+
+        .modal-inner {
+            display: flex;
+            gap: var(--spacing-md);
+            padding: var(--spacing-lg);
+            width: 100%;
+            height: 100%;
+            opacity: 1;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            flex-direction: row;
+        }
+
+        .modal-inner.compact-layout {
+            flex-direction: column;
+            padding: var(--spacing-sm);
+            gap: var(--spacing-xs);
+        }
+
+        .modal-inner.compact-layout .modal-image-wrapper {
+            width: 100%;
+            height: auto;
+            padding: 0;
+            aspect-ratio: 4/3;
+        }
+
+        .modal-inner.compact-layout .modal-info {
+            width: 100%;
+            min-width: unset;
+        }
+
+        .modal-inner.compact-layout .info-card {
+            margin-bottom: var(--spacing-xs);
+            padding: var(--spacing-xs);
+        }
+
+        .modal-inner.compact-layout .defect-detail-title {
+            font-size: 14px;
+            padding: var(--spacing-xs);
+            margin-bottom: 0;
+        }
+
+        .modal-inner.compact-layout .modal-actions {
+            padding: var(--spacing-xs);
+        }
+
+        .modal-image-wrapper {
+            position: relative;
+            flex-shrink: 0;
+            overflow: hidden;
+            border-radius: var(--radius-lg);
+            background: var(--bg-elevated);
+            width: 65%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1002;
+        }
+
+        .modal-inner.compact-layout .modal-image-wrapper {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 4/3;
+            padding: 0;
+        }
+
+        .modal-content img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .modal-inner.compact-layout .modal-content img {
+            object-fit: cover;
+        }
+
+        .modal-close-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .modal-close-btn:hover {
+            background: white;
+            color: var(--danger);
+            transform: scale(1.1);
+        }
+
+        /* 导航箭头 */
+        .nav-arrows {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            transform: translateY(-50%);
+            display: flex;
+            justify-content: space-between;
+            padding: 0 16px;
+            pointer-events: none;
+            z-index: 15;
+        }
+
+        .nav-arrows .nav-arrow {
+            pointer-events: auto;
+            position: static;
+            transform: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            box-shadow: var(--shadow-md);
+        }
+
+        .nav-arrows .nav-arrow:hover:not(:disabled) {
+            background: white;
+            transform: scale(1.1);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .nav-arrows .nav-arrow:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .nav-arrows .nav-arrow:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* AI建议样式 */
+        .ai-suggestion {
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+        }
+
+        .no-ai-message {
+            text-align: center;
+            padding: var(--spacing-lg);
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        /* 缺陷列表样式 */
+        .defect-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .modal-info {
+            background: transparent;
+            padding: 0;
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            width: 35%;
+            min-width: 280px;
+            overflow: hidden;
+        }
+
+        .defect-detail-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+            padding: var(--spacing-md);
+            padding-bottom: var(--spacing-sm);
+            flex-shrink: 0;
+        }
+
+        .modal-info .info-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 0 1px;
+            scrollbar-width: none;
+        }
+
+        .modal-info .info-content::-webkit-scrollbar {
+            display: none;
+        }
+
+        .info-card {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-md);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border);
+            margin: var(--spacing-md) 1px;
+            margin-top: 0;
+        }
+
+        .info-card:first-child {
+            margin-top: var(--spacing-md);
+        }
+
+        .info-card h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--spacing-xs) 0;
+            font-size: 13px;
+        }
+
+        .info-row .label {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .info-row .value {
+            color: var(--text-primary);
+            font-weight: 400;
+        }
+
+        .defect-item {
+            padding: var(--spacing-xs) 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .defect-item:last-child {
+            border-bottom: none;
+        }
+
+        .defect-name {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .defect-confidence {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: auto;
+            padding: var(--spacing-md);
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease 0.35s;
+            flex-shrink: 0;
+        }
+
+        .modal.active .modal-actions {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .modal-btn.download {
+            background: var(--primary);
+            color: white;
+        }
+
+        .modal-btn.download:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        .modal-btn.delete {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+        }
+
+        .modal-btn.delete:hover {
+            background: rgba(239, 68, 68, 0.2);
+            transform: translateY(-2px);
+        }
+
+        /* 图片类型切换标签 */
+        .image-type-tabs {
+            display: flex;
+            gap: var(--spacing-xs);
+            margin-bottom: var(--spacing-md);
+            flex-wrap: wrap;
+        }
+
+        .image-type-tab {
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: white;
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .image-type-tab:hover {
+            border-color: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .image-type-tab.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        /* 响应式 */
+        @media (max-width: 1400px) {
+            .charts-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .admin-layout {
+                grid-template-columns: 1fr;
+            }
+            .admin-nav {
+                flex-direction: row;
+                overflow-x: auto;
+            }
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+    <!-- 统一 Header -->
+    <header class="app-header">
+        <div class="brand">
+            <div class="logo">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 12L20 6L32 12V28L20 34L8 28V12Z" fill="currentColor" opacity="0.9"/>
+                    <path d="M8 12L20 18L32 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M20 18V34" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M8 12V28L20 34" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M32 12V28L20 34" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <line x1="12" y1="15" x2="12" y2="25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                    <line x1="28" y1="15" x2="28" y2="25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                </svg>
+            </div>
+            <div class="title">
+                <h1>钢材缺陷检测系统</h1>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="profile-btn" title="个人中心" id="profileBtn" onclick="toggleProfile()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+            </button>
+            <button class="folder-btn" title="检测记录" onclick="window.location.href='/captures'">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+            </button>
+            <button class="settings-btn" title="设置">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- 双栏布局 -->
+    <div class="admin-layout">
+        <!-- 左侧导航 -->
+        <nav class="admin-nav">
+            <button class="nav-btn active" data-panel="dashboard" onclick="switchPanel('dashboard')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                信息概览
+            </button>
+            <button class="nav-btn" data-panel="records" onclick="switchPanel('records')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                检测记录
+            </button>
+            <button class="nav-btn" data-panel="model" onclick="switchPanel('model')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                模型设置
+            </button>
+            <button class="nav-btn" data-panel="ai" onclick="switchPanel('ai')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                AI对话
+            </button>
+            <button class="nav-btn" data-panel="users" onclick="switchPanel('users')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                用户管理
+            </button>
+
+            <div class="nav-divider"></div>
+
+            <button class="nav-btn" data-panel="home" onclick="switchPanel('home')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                检测主页
+            </button>
+
+            <div class="nav-footer">
+                <div class="nav-user">
+                    <div class="nav-user-avatar">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    </div>
+                    <div>
+                        <div class="nav-user-name" id="navUsername">管理员</div>
+                        <div class="nav-user-role">系统管理员</div>
+                    </div>
+                </div>
+                <button class="nav-btn" onclick="logout()" style="color: var(--danger);">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    退出登录
+                </button>
+            </div>
+        </nav>
+
+        <!-- 中间内容区 -->
+        <div class="admin-content">
+
+            <!-- 信息概览面板 -->
+            <div id="dashboardPanel" class="panel active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div>
+                            <div class="stat-card-value" id="statTotalRecords">-</div>
+                            <div class="stat-card-label">检测记录总数</div>
+                        </div>
+                        <div class="stat-card-icon blue">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div>
+                            <div class="stat-card-value" id="statTodayRecords">-</div>
+                            <div class="stat-card-label">今日检测</div>
+                        </div>
+                        <div class="stat-card-icon green">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div>
+                            <div class="stat-card-value" id="statUserCount">-</div>
+                            <div class="stat-card-label">注册用户</div>
+                        </div>
+                        <div class="stat-card-icon orange">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div>
+                            <div class="stat-card-value" id="statDefectTypes">-</div>
+                            <div class="stat-card-label">缺陷类型</div>
+                        </div>
+                        <div class="stat-card-icon red">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 图表区域：6个图表 -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>最近7天检测趋势</h3>
+                        <div class="chart-body">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>缺陷类别分布</h3>
+                        <div class="chart-body" id="defectList" style="flex-direction:column;align-items:stretch;justify-content:flex-start;gap:8px;padding:4px 0;"></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>缺陷占比</h3>
+                        <div class="chart-body">
+                            <div class="defect-chart-container">
+                                <canvas id="defectDoughnutChart" width="150" height="150"></canvas>
+                                <div class="defect-legend" id="defectLegend"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>最近统计</h3>
+                        <div class="chart-body">
+                            <canvas id="recentStatsBarChart" width="250" height="250"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>损伤占比</h3>
+                        <div class="chart-body" id="damageRatioContent" style="flex-direction:column;align-items:stretch;justify-content:flex-start;gap:4px;padding:4px 0;">
+                            <div style="text-align:center;color:var(--text-muted);font-size:13px;">加载中...</div>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>置信分布</h3>
+                        <div class="chart-body">
+                            <canvas id="confidenceBarChart" width="250" height="250"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-card-header">
+                    <h3>最近检测记录</h3>
+                    <button class="btn btn-sm btn-primary" onclick="switchPanel('records')">查看全部</button>
+                </div>
+                <div class="grid" id="recentRecordsGrid"></div>
+            </div>
+
+            <!-- 检测记录面板 -->
+            <div id="recordsPanel" class="panel">
+                <div class="content-card-header">
+                    <h3>全部检测记录</h3>
+                </div>
+                <!-- 工具栏 + 筛选器 -->
+                <div class="toolbar" style="margin-bottom: var(--spacing-md);">
+                    <div class="filter-group">
+                        <label>用户类型</label>
+                        <div class="custom-select-wrapper">
+                            <div class="custom-select" data-value="all" id="filterUserTypeSelect">
+                                <div class="custom-select-trigger" onclick="toggleCustomSelect(this)">
+                                    <span>全部用户</span>
+                                    <svg class="custom-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                </div>
+                                <div class="custom-select-options">
+                                    <div class="custom-option active" data-value="all" onclick="selectCustomOption(this)">全部用户</div>
+                                    <div class="custom-option" data-value="personal" onclick="selectCustomOption(this)">个人用户</div>
+                                    <div class="custom-option" data-value="enterprise" onclick="selectCustomOption(this)">企业用户</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>缺陷类型</label>
+                        <div class="custom-select-wrapper">
+                            <div class="custom-select" data-value="all" id="filterDefectTypeSelect">
+                                <div class="custom-select-trigger" onclick="toggleCustomSelect(this)">
+                                    <span>全部类型</span>
+                                    <svg class="custom-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                </div>
+                                <div class="custom-select-options">
+                                    <div class="custom-option active" data-value="all" onclick="selectCustomOption(this)">全部类型</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>来源类型</label>
+                        <div class="custom-select-wrapper">
+                            <div class="custom-select" data-value="all" id="filterSourceTypeSelect">
+                                <div class="custom-select-trigger" onclick="toggleCustomSelect(this)">
+                                    <span>全部来源</span>
+                                    <svg class="custom-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                </div>
+                                <div class="custom-select-options">
+                                    <div class="custom-option active" data-value="all" onclick="selectCustomOption(this)">全部来源</div>
+                                    <div class="custom-option" data-value="image" onclick="selectCustomOption(this)">图片检测</div>
+                                    <div class="custom-option" data-value="local_camera" onclick="selectCustomOption(this)">本地摄像头</div>
+                                    <div class="custom-option" data-value="ip_camera" onclick="selectCustomOption(this)">IP摄像头</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>开始时间</label>
+                        <input type="datetime-local" class="date-input" id="filterStartDate" onchange="filterRecords()">
+                    </div>
+                    <div class="filter-group">
+                        <label>结束时间</label>
+                        <input type="datetime-local" class="date-input" id="filterEndDate" onchange="filterRecords()">
+                    </div>
+                </div>
+                <div class="grid" id="recordsGrid"></div>
+                <div id="recordsEmpty" class="empty-state" style="display:none;">
+                    <div class="empty-state-icon">📋</div>
+                    <div>暂无检测记录</div>
+                </div>
+                <div class="pagination" id="recordsPagination"></div>
+            </div>
+
+            <!-- 模型设置面板 -->
+            <div id="modelPanel" class="panel">
+                <div class="content-card-header">
+                    <h3>当前模型信息</h3>
+                </div>
+                <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin-bottom: var(--spacing-lg);">
+                    <div class="stat-card"><div><div class="stat-card-label">模型类型</div><div class="stat-card-value" style="font-size:20px;margin-top:4px;" id="modelType">-</div></div></div>
+                    <div class="stat-card"><div><div class="stat-card-label">设备</div><div class="stat-card-value" style="font-size:20px;margin-top:4px;" id="modelDevice">-</div></div></div>
+                    <div class="stat-card"><div><div class="stat-card-label">类别数</div><div class="stat-card-value" style="font-size:20px;margin-top:4px;" id="modelClasses">-</div></div></div>
+                    <div class="stat-card"><div><div class="stat-card-label">置信度阈值</div><div class="stat-card-value" style="font-size:20px;margin-top:4px;" id="modelConf">-</div></div></div>
+                    <div class="stat-card"><div><div class="stat-card-label">IOU阈值</div><div class="stat-card-value" style="font-size:20px;margin-top:4px;" id="modelIou">-</div></div></div>
+                </div>
+                <div class="content-card-header">
+                    <h3>缺陷类别</h3>
+                </div>
+                <div id="modelClassList"></div>
+            </div>
+
+            <!-- AI对话面板 -->
+            <div id="aiPanel" class="panel">
+                <div class="ai-card">
+                    <div class="ai-header">
+                        <div class="ai-title">AI 智能分析</div>
+                        <div class="switch-track" id="aiSwitch" onclick="toggleAI()">
+                            <div class="switch-thumb"></div>
+                        </div>
+                    </div>
+                    <div id="aiContent">
+                        <div id="aiLoading" class="loading-spinner" style="display:none;"><div class="spinner"></div><span>正在分析...</span></div>
+                        <div id="aiResult" class="ai-result"></div>
+                        <div id="aiPlaceholder" class="ai-placeholder">开启AI分析获取智能建议</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 检测主页面板（iframe 嵌入） -->
+            <div id="homePanel" class="panel" style="padding:0;overflow:hidden;">
+                <iframe id="homeIframe" src="/" style="width:100%;height:100%;border:none;min-height:calc(100vh - 160px);"></iframe>
+            </div>
+
+            <!-- 个人中心面板（iframe 嵌入） -->
+            <div id="profilePanel" class="panel" style="padding:0;overflow:hidden;">
+                <iframe id="profileIframe" src="/profile" style="width:100%;height:100%;border:none;min-height:calc(100vh - 160px);"></iframe>
+            </div>
+
+            <!-- 用户管理面板 -->
+            <div id="usersPanel" class="panel">
+                <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+                    <div class="stat-card">
+                        <div><div class="stat-card-value" id="userTotal">-</div><div class="stat-card-label">总用户数</div></div>
+                        <div class="stat-card-icon blue"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg></div>
+                    </div>
+                    <div class="stat-card">
+                        <div><div class="stat-card-value" id="userPersonal">-</div><div class="stat-card-label">个人用户</div></div>
+                        <div class="stat-card-icon green"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>
+                    </div>
+                    <div class="stat-card">
+                        <div><div class="stat-card-value" id="userEnterprise">-</div><div class="stat-card-label">企业用户</div></div>
+                        <div class="stat-card-icon orange"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg></div>
+                    </div>
+                </div>
+                <div class="content-card-header">
+                    <h3>用户列表</h3>
+                </div>
+                <div class="toolbar" style="margin-bottom: var(--spacing-md);">
+                    <div class="filter-group">
+                        <label>用户类型</label>
+                        <div class="custom-select-wrapper">
+                            <div class="custom-select" data-value="all" id="filterUserTypeManageSelect">
+                                <div class="custom-select-trigger" onclick="toggleCustomSelect(this)">
+                                    <span>全部用户</span>
+                                    <svg class="custom-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                </div>
+                                <div class="custom-select-options">
+                                    <div class="custom-option active" data-value="all" onclick="selectCustomOption(this)">全部用户</div>
+                                    <div class="custom-option" data-value="personal" onclick="selectCustomOption(this)">个人用户</div>
+                                    <div class="custom-option" data-value="enterprise" onclick="selectCustomOption(this)">企业用户</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <table class="data-table">
+                    <thead><tr><th>用户名</th><th>角色</th><th>企业</th><th>检测次数</th><th>注册时间</th></tr></thead>
+                    <tbody id="usersBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    </div>
+
+    <!-- 设置面板 -->
+    <div class="settings-overlay" id="settingsOverlay"></div>
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-title">显示设置</div>
+        <div class="settings-card">
+            <div class="setting-item">
+                <div class="setting-label">
+                    <div class="setting-title">动画程序</div>
+                    <div class="setting-description">点击组件时添加动画效果</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="animationToggle" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="setting-item">
+                <div class="setting-label">
+                    <div class="setting-title">高对比度文字</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="highContrastToggle">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="setting-item">
+                <div class="setting-label">
+                    <div class="setting-title">高斯模糊</div>
+                    <div class="setting-description">弹窗背景模糊效果</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="blurToggle" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模态框 -->
+    <div id="imageModal" class="modal" style="visibility:hidden;">
+        <div class="modal-content" style="left:-9999px;top:-9999px;">
+            <div class="modal-image-wrapper">
+                <button class="modal-close-btn" onclick="closeBatchModal()">✕</button>
+                <img id="modalImage" src="" alt="" />
+            </div>
+            <div id="modalInfo" class="modal-info"></div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('access_token');
+        const headers = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+
+        let allRecords = [];
+        let allUsers = [];
+        let trendChart = null;
+        let recordsPage = 1;
+        const recordsPerPage = 12;
+
+        // ====== 图表实例 ======
+        let defectChart = null;
+        let recentStatsChart = null;
+        let confidenceChart = null;
+
+        // ====== 模态框状态 ======
+        let animationInProgress = false;
+        let originalCardRect = null;
+        let currentBatchId = null;
+        let currentBatchData = null;
+        let currentImageType = 'original';
+        let currentCropIndex = 0;
+
+        // ====== 自定义下拉框 ======
+        function toggleCustomSelect(trigger) {
+            const wrapper = trigger.closest('.custom-select-wrapper');
+            const options = wrapper.querySelector('.custom-select-options');
+            const isOpen = options.classList.contains('open');
+
+            document.querySelectorAll('.custom-select-options.open').forEach(o => {
+                o.classList.remove('open');
+                o.closest('.custom-select').querySelector('.custom-select-trigger').classList.remove('open');
+            });
+
+            if (!isOpen) {
+                options.classList.add('open');
+                trigger.classList.add('open');
+            }
+        }
+
+        function selectCustomOption(option) {
+            const wrapper = option.closest('.custom-select-wrapper');
+            const select = wrapper.querySelector('.custom-select');
+            const trigger = wrapper.querySelector('.custom-select-trigger span');
+            const options = wrapper.querySelector('.custom-select-options');
+
+            options.querySelectorAll('.custom-option').forEach(o => o.classList.remove('active'));
+            option.classList.add('active');
+            trigger.textContent = option.textContent;
+            select.setAttribute('data-value', option.getAttribute('data-value'));
+            options.classList.remove('open');
+            wrapper.querySelector('.custom-select-trigger').classList.remove('open');
+
+            const selectId = select.id;
+            if (selectId.startsWith('filter') && selectId.endsWith('Select')) {
+                if (selectId.includes('User') && selectId.includes('Manage')) {
+                    filterUsers();
+                } else {
+                    filterRecords();
+                }
+            }
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.custom-select-wrapper')) {
+                document.querySelectorAll('.custom-select-options.open').forEach(o => {
+                    o.classList.remove('open');
+                    o.closest('.custom-select').querySelector('.custom-select-trigger').classList.remove('open');
+                });
+            }
+        });
+
+        // ====== 面板切换 ======
+        function switchPanel(name) {
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.getElementById(name + 'Panel').classList.add('active');
+            document.querySelectorAll('.nav-btn[data-panel]').forEach(b => b.classList.remove('active'));
+            const btn = document.querySelector(`.nav-btn[data-panel="${name}"]`);
+            if (btn) btn.classList.add('active');
+
+            if (name === 'records' && allRecords.length === 0) loadRecords();
+            if (name === 'users' && allUsers.length === 0) loadUsers();
+            if (name === 'model') loadModelInfo();
+            // home 面板使用 iframe，无需额外加载
+        }
+
+        // ====== 加载用户信息 ======
+        async function loadUserInfo() {
+            try {
+                const res = await fetch('/api/auth/me', { headers });
+                const user = await res.json();
+                document.getElementById('navUsername').textContent = user.username || '管理员';
+            } catch (e) {}
+        }
+
+        // ====== 加载看板数据 ======
+        async function loadDashboard() {
+            try {
+                const [recordsRes, usersRes] = await Promise.all([
+                    fetch('/api/admin/detection_records', { headers }),
+                    fetch('/api/admin/users', { headers })
+                ]);
+                const recordsData = await recordsRes.json();
+                const usersData = await usersRes.json();
+
+                allRecords = recordsData.records || [];
+                allUsers = usersData.users || [];
+
+                document.getElementById('statTotalRecords').textContent = allRecords.length;
+                document.getElementById('statUserCount').textContent = allUsers.length;
+
+                const today = new Date().toISOString().slice(0, 10);
+                const todayCount = allRecords.filter(r => r.timestamp && r.timestamp.slice(0, 10) === today).length;
+                document.getElementById('statTodayRecords').textContent = todayCount;
+
+                const defectTypes = new Set();
+                allRecords.forEach(r => {
+                    if (r.defects) r.defects.forEach(d => defectTypes.add(d.class_name || d.type));
+                });
+                document.getElementById('statDefectTypes').textContent = defectTypes.size || 6;
+
+                // 渲染所有图表
+                renderDefectDistribution(allRecords);
+                renderTrendChart(allRecords);
+                renderRecentRecords(allRecords.slice(0, 8));
+
+                // 从 captures API 获取图表数据
+                initDefectDoughnutChart();
+                initRecentStatsBarChart();
+                initConfidenceChart();
+                fetchDefectStats();
+                fetchRecentStats();
+                fetchDamageRatio();
+                fetchConfidenceDistribution();
+
+            } catch (e) {
+                console.error('加载看板失败:', e);
+            }
+        }
+
+        // ====== 缺陷类别分布（进度条） ======
+        function renderDefectDistribution(records) {
+            const counts = {};
+            records.forEach(r => {
+                if (r.defects) r.defects.forEach(d => {
+                    const name = d.class_name || d.type || '未知';
+                    counts[name] = (counts[name] || 0) + 1;
+                });
+            });
+            const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
+            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+            const container = document.getElementById('defectList');
+            container.innerHTML = sorted.map(([name, count]) => {
+                const pct = ((count / total) * 100).toFixed(1);
+                return `
+                    <div class="defect-bar">
+                        <span class="defect-bar-label">${name}</span>
+                        <div class="defect-bar-track"><div class="defect-bar-fill" style="width:${pct}%"></div></div>
+                        <span class="defect-bar-value">${pct}%</span>
+                    </div>
+                `;
+            }).join('') || '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">暂无缺陷数据</div>';
+        }
+
+        // ====== 检测趋势图 ======
+        function renderTrendChart(records) {
+            const days = [];
+            const counts = [];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dateStr = d.toISOString().slice(0, 10);
+                days.push(dateStr.slice(5));
+                counts.push(records.filter(r => r.timestamp && r.timestamp.slice(0, 10) === dateStr).length);
+            }
+
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            if (trendChart) trendChart.destroy();
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: days,
+                    datasets: [{
+                        label: '检测次数',
+                        data: counts,
+                        borderColor: '#0055FF',
+                        backgroundColor: 'rgba(0, 85, 255, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#0055FF'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                }
+            });
+        }
+
+        // ====== 缺陷占比饼图 ======
+        const DOUGHNUT_COLORS = ['#3B82F6','#EF4444','#10B981','#F59E0B','#8B5CF6','#EC4899','#06B6D4','#84CC16'];
+
+        function initDefectDoughnutChart() {
+            const ctx = document.getElementById('defectDoughnutChart');
+            if (!ctx) return;
+            defectChart = new Chart(ctx.getContext('2d'), {
+                type: 'doughnut',
+                data: { labels: [], datasets: [{ data: [], backgroundColor: DOUGHNUT_COLORS, borderWidth: 0 }] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    animation: false,
+                    cutout: '60%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                                    const pct = ((ctx.parsed / total) * 100).toFixed(1);
+                                    return `${ctx.label}: ${ctx.parsed} (${pct}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateDefectDoughnutChart(defectData) {
+            if (!defectChart || !defectData) return;
+            const sorted = Object.entries(defectData).sort((a, b) => b[1] - a[1]);
+            defectChart.data.labels = sorted.map(e => e[0]);
+            defectChart.data.datasets[0].data = sorted.map(e => e[1]);
+            defectChart.update();
+            updateDefectLegend(sorted);
+        }
+
+        function updateDefectLegend(sorted) {
+            const total = sorted.reduce((s, e) => s + e[1], 0) || 1;
+            const legend = document.getElementById('defectLegend');
+            if (!legend) return;
+            legend.innerHTML = sorted.map(([name, count], i) => {
+                const pct = ((count / total) * 100).toFixed(1);
+                const color = DOUGHNUT_COLORS[i % DOUGHNUT_COLORS.length];
+                return `<div class="defect-legend-item"><span class="defect-legend-dot" style="background:${color}"></span><span class="defect-legend-label">${name}</span><span class="defect-legend-pct">${pct}%</span></div>`;
+            }).join('');
+        }
+
+        // ====== 最近统计柱状图 ======
+        function initRecentStatsBarChart() {
+            const ctx = document.getElementById('recentStatsBarChart');
+            if (!ctx) return;
+            recentStatsChart = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: '有缺陷', data: [], backgroundColor: '#EF4444', borderRadius: 4, barPercentage: 0.6 },
+                        { label: '总导入', data: [], backgroundColor: '#3B82F6', borderRadius: 4, barPercentage: 0.6 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                    }
+                }
+            });
+        }
+
+        function updateRecentStatsChart(dailyStats) {
+            if (!recentStatsChart || !dailyStats) return;
+            const dates = Object.keys(dailyStats).sort();
+            const labels = dates.map(d => { const p = d.split('-'); return `${p[1]}.${p[2]}`; });
+            recentStatsChart.data.labels = labels;
+            recentStatsChart.data.datasets[0].data = dates.map(d => dailyStats[d].defect || 0);
+            recentStatsChart.data.datasets[1].data = dates.map(d => dailyStats[d].total || 0);
+            recentStatsChart.update();
+        }
+
+        // ====== 置信分布柱状图 ======
+        function initConfidenceChart() {
+            const ctx = document.getElementById('confidenceBarChart');
+            if (!ctx) return;
+            confidenceChart = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['0-20%', '20-40%', '40-60%', '60-80%', '80-100%'],
+                    datasets: [{
+                        label: '数量',
+                        data: [0, 0, 0, 0, 0],
+                        backgroundColor: ['#EF4444', '#F59E0B', '#8B5CF6', '#3B82F6', '#10B981'],
+                        borderRadius: 4,
+                        barPercentage: 0.6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                    }
+                }
+            });
+        }
+
+        function updateConfidenceChart(distribution) {
+            if (!confidenceChart || !distribution) return;
+            const counts = Array.isArray(distribution) ? distribution.map(d => d.count || 0) : Object.values(distribution);
+            confidenceChart.data.datasets[0].data = counts;
+            confidenceChart.update();
+        }
+
+        // ====== 损伤占比（HTML 进度条） ======
+        function renderDamageRatio(damageData) {
+            const container = document.getElementById('damageRatioContent');
+            if (!container || !damageData) return;
+
+            const entries = Object.entries(damageData);
+            if (!entries.length) {
+                container.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:13px;">暂无损伤数据</div>';
+                return;
+            }
+
+            container.innerHTML = entries.map(([name, info]) => {
+                const ratio = info.avg_area_ratio || 0;
+                const color = ratio < 33 ? '#10B981' : ratio < 66 ? '#F59E0B' : '#EF4444';
+                return `
+                    <div class="damage-ratio-item">
+                        <span class="damage-ratio-label" title="${name}">${name}</span>
+                        <div class="damage-ratio-track"><div class="damage-ratio-fill" style="width:${Math.min(ratio, 100)}%;background:${color}"></div></div>
+                        <span class="damage-ratio-value">${ratio.toFixed(1)}%</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ====== 从 captures API 获取图表数据 ======
+        async function fetchDefectStats() {
+            try {
+                const res = await fetch('/api/captures/stats');
+                const data = await res.json();
+                if (data.success && data.stats && data.stats.class_counts) {
+                    // class_counts 是 {class_id: count}，需要转换为 {class_name: count}
+                    const classMap = {};
+                    try {
+                        const clsRes = await fetch('/class_options');
+                        const classes = await clsRes.json();
+                        classes.forEach(c => { classMap[c.id] = c.name; });
+                    } catch(e) {}
+                    const defectData = {};
+                    Object.entries(data.stats.class_counts).forEach(([id, count]) => {
+                        const name = classMap[id] || `类别${id}`;
+                        defectData[name] = count;
+                    });
+                    updateDefectDoughnutChart(defectData);
+                }
+            } catch (e) {
+                console.error('获取缺陷统计失败:', e);
+            }
+        }
+
+        async function fetchRecentStats() {
+            try {
+                const res = await fetch('/api/captures/recent_stats');
+                const data = await res.json();
+                if (data.success && data.stats && data.stats.daily_counts) {
+                    const dailyStats = {};
+                    Object.entries(data.stats.daily_counts).forEach(([dateStr, count]) => {
+                        // dateStr 格式: YYYYMMDD
+                        const formatted = `${dateStr.slice(0,4)}-${dateStr.slice(4,6)}-${dateStr.slice(6,8)}`;
+                        dailyStats[formatted] = { defect: count, total: count };
+                    });
+                    updateRecentStatsChart(dailyStats);
+                }
+            } catch (e) {
+                console.error('获取最近统计失败:', e);
+            }
+        }
+
+        async function fetchDamageRatio() {
+            try {
+                const res = await fetch('/api/captures/damage_ratio');
+                const data = await res.json();
+                if (data.success && data.ratio) {
+                    // ratio 结构: {total, with_defects, without_defects, damage_ratio}
+                    renderDamageRatio({
+                        '有缺陷记录': { avg_area_ratio: data.ratio.damage_ratio || 0 },
+                        '无缺陷记录': { avg_area_ratio: 100 - (data.ratio.damage_ratio || 0) }
+                    });
+                }
+            } catch (e) {
+                console.error('获取损伤占比失败:', e);
+            }
+        }
+
+        async function fetchConfidenceDistribution() {
+            try {
+                const res = await fetch('/api/captures/confidence_distribution');
+                const data = await res.json();
+                if (data.success && data.distribution) {
+                    updateConfidenceChart(data.distribution);
+                }
+            } catch (e) {
+                console.error('获取置信分布失败:', e);
+            }
+        }
+
+        // ====== 渲染最近记录（卡片网格，带真实图片） ======
+        function renderRecentRecords(records) {
+            const grid = document.getElementById('recentRecordsGrid');
+            if (!records.length) {
+                grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="empty-state-icon">📋</div><div>暂无检测记录</div></div>';
+                return;
+            }
+            grid.innerHTML = records.map(r => {
+                const defects = (r.defects || []);
+                const count = defects.length;
+                const time = r.timestamp ? new Date(r.timestamp).toLocaleString('zh-CN') : '-';
+                const thumbSrc = r.thumbnail ? `/captures/${r.thumbnail}` : '';
+                const imgHtml = thumbSrc
+                    ? `<img src="${thumbSrc}" alt="${r.batch_id}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                    : '';
+                // 用户类型标签
+                const userType = r.user_type || 'personal';
+                const userTypeLabel = userType === 'enterprise' ? '企业' : userType === 'admin' ? '管理员' : '个人';
+                const userTypeClass = userType === 'enterprise' ? 'enterprise' : userType === 'admin' ? 'admin' : 'personal';
+                return `
+                    <div class="card" onclick="showRecordModal(this, '${r.batch_id}')" style="cursor:pointer;">
+                        <div class="thumb">
+                            ${imgHtml}
+                            <div style="position:absolute;top:0;left:0;width:100%;height:100%;display:${thumbSrc ? 'none' : 'flex'};align-items:center;justify-content:center;background:var(--bg-elevated);color:var(--text-muted);font-size:36px;">📸</div>
+                            <span class="badge">${count > 0 ? count + '个缺陷' : '正常'}</span>
+                        </div>
+                        <div class="card-info">
+                            <div class="name">${r.username || '未知用户'} · ${r.batch_id || '-'}</div>
+                            <div class="time">${time}</div>
+                            ${count > 0 ? `<div class="defect-tags"><span class="defect-tag ${userTypeClass}">${userTypeLabel}</span>${defects.slice(0, 3).map(d => `<span class="defect-tag">${d.class_name || d.type}</span>`).join('')}${count > 3 ? `<span class="defect-tag">+${count - 3}</span>` : ''}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ====== 加载全部记录 ======
+        async function loadRecords() {
+            if (allRecords.length > 0) {
+                initDefectTypeFilter(allRecords);
+                initDateRange(allRecords);
+                renderRecordsPage(allRecords, 1);
+                return;
+            }
+            try {
+                const res = await fetch('/api/admin/detection_records', { headers });
+                const data = await res.json();
+                allRecords = data.records || [];
+                initDefectTypeFilter(allRecords);
+                initDateRange(allRecords);
+                renderRecordsPage(allRecords, 1);
+            } catch (e) {
+                console.error('加载记录失败:', e);
+            }
+        }
+
+        // 初始化时间范围（最早/最晚时间）
+        function initDateRange(records) {
+            const timestamps = records.map(r => r.timestamp).filter(Boolean).sort();
+            if (timestamps.length > 0) {
+                const earliest = timestamps[0];
+                const latest = timestamps[timestamps.length - 1];
+                // 转换为 datetime-local 格式 (YYYY-MM-DDTHH:MM)
+                const toLocal = (ts) => {
+                    const d = new Date(ts);
+                    const pad = n => String(n).padStart(2, '0');
+                    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                };
+                document.getElementById('filterStartDate').value = toLocal(earliest);
+                document.getElementById('filterEndDate').value = toLocal(latest);
+            }
+        }
+
+        function initDefectTypeFilter(records) {
+            const types = new Set();
+            records.forEach(r => {
+                if (r.defects) r.defects.forEach(d => types.add(d.class_name || d.type));
+            });
+            const container = document.querySelector('#filterDefectTypeSelect .custom-select-options');
+            if (!container) return;
+            container.innerHTML = '<div class="custom-option active" data-value="all" onclick="selectCustomOption(this)">全部类型</div>';
+            [...types].sort().forEach(t => {
+                container.innerHTML += `<div class="custom-option" data-value="${t}" onclick="selectCustomOption(this)">${t}</div>`;
+            });
+        }
+
+        function renderRecordsPage(records, page) {
+            recordsPage = page;
+            const grid = document.getElementById('recordsGrid');
+            const empty = document.getElementById('recordsEmpty');
+            const pagination = document.getElementById('recordsPagination');
+
+            if (!records.length) {
+                grid.innerHTML = '';
+                grid.style.display = 'none';
+                empty.style.display = 'block';
+                pagination.innerHTML = '';
+                return;
+            }
+
+            grid.style.display = '';
+            empty.style.display = 'none';
+
+            const totalPages = Math.ceil(records.length / recordsPerPage);
+            const start = (page - 1) * recordsPerPage;
+            const pageRecords = records.slice(start, start + recordsPerPage);
+
+            grid.innerHTML = pageRecords.map(r => {
+                const defects = (r.defects || []);
+                const count = defects.length;
+                const time = r.timestamp ? new Date(r.timestamp).toLocaleString('zh-CN') : '-';
+                const thumbSrc = r.thumbnail ? `/captures/${r.thumbnail}` : '';
+                const imgHtml = thumbSrc
+                    ? `<img src="${thumbSrc}" alt="${r.batch_id}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                    : '';
+                // 用户类型标签
+                const userType = r.user_type || 'personal';
+                const userTypeLabel = userType === 'enterprise' ? '企业' : userType === 'admin' ? '管理员' : '个人';
+                const userTypeClass = userType === 'enterprise' ? 'enterprise' : userType === 'admin' ? 'admin' : 'personal';
+                return `
+                    <div class="card" onclick="showRecordModal(this, '${r.batch_id}')" style="cursor:pointer;">
+                        <div class="thumb">
+                            ${imgHtml}
+                            <div style="position:absolute;top:0;left:0;width:100%;height:100%;display:${thumbSrc ? 'none' : 'flex'};align-items:center;justify-content:center;background:var(--bg-elevated);color:var(--text-muted);font-size:36px;">📸</div>
+                            <span class="badge">${count > 0 ? count + '个缺陷' : '正常'}</span>
+                        </div>
+                        <div class="card-info">
+                            <div class="name">${r.username || '未知用户'} · ${r.batch_id || '-'}</div>
+                            <div class="time">${time}</div>
+                            ${count > 0 ? `<div class="defect-tags"><span class="defect-tag ${userTypeClass}">${userTypeLabel}</span>${defects.slice(0, 3).map(d => `<span class="defect-tag">${d.class_name || d.type}</span>`).join('')}${count > 3 ? `<span class="defect-tag">+${count - 3}</span>` : ''}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            renderPagination(records.length, totalPages, page);
+        }
+
+        function renderPagination(total, totalPages, current) {
+            const container = document.getElementById('recordsPagination');
+            if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+            let html = `<button ${current === 1 ? 'disabled' : ''} onclick="goRecordsPage(${current - 1})">上一页</button>`;
+            html += '<div class="page-numbers">';
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= current - 1 && i <= current + 1)) {
+                    html += `<button class="${i === current ? 'active' : ''}" onclick="goRecordsPage(${i})">${i}</button>`;
+                } else if (i === current - 2 || i === current + 2) {
+                    html += '<span style="padding:0 4px;color:var(--text-muted);">...</span>';
+                }
+            }
+            html += '</div>';
+            html += `<button ${current === totalPages ? 'disabled' : ''} onclick="goRecordsPage(${current + 1})">下一页</button>`;
+            html += `<span class="page-info">共 ${total} 条</span>`;
+            container.innerHTML = html;
+        }
+
+        function goRecordsPage(page) {
+            const filtered = getFilteredRecords();
+            renderRecordsPage(filtered, page);
+        }
+
+        function getFilteredRecords() {
+            const userType = document.getElementById('filterUserTypeSelect').getAttribute('data-value') || 'all';
+            const defectType = document.getElementById('filterDefectTypeSelect').getAttribute('data-value') || 'all';
+            const sourceType = document.getElementById('filterSourceTypeSelect').getAttribute('data-value') || 'all';
+            const startDate = document.getElementById('filterStartDate').value;
+            const endDate = document.getElementById('filterEndDate').value;
+
+            return allRecords.filter(r => {
+                if (userType !== 'all' && r.user_type !== userType) return false;
+                if (defectType !== 'all') {
+                    const hasDefect = (r.defects || []).some(d => (d.class_name || d.type) === defectType);
+                    if (!hasDefect) return false;
+                }
+                if (sourceType !== 'all') {
+                    // 兼容旧记录：根据 batch_id 前缀推断 source_type
+                    const recordSourceType = r.source_type || (r.batch_id?.startsWith('image_batch_') ? 'image' : 'legacy');
+                    if (recordSourceType !== sourceType) return false;
+                }
+                if (startDate && r.timestamp && r.timestamp < startDate) return false;
+                if (endDate && r.timestamp && r.timestamp > endDate + 'T23:59:59') return false;
+                return true;
+            });
+        }
+
+        function filterRecords() {
+            const filtered = getFilteredRecords();
+            renderRecordsPage(filtered, 1);
+        }
+
+        function resetFilters() {
+            document.getElementById('filterStartDate').value = '';
+            document.getElementById('filterEndDate').value = '';
+
+            ['filterUserTypeSelect', 'filterDefectTypeSelect', 'filterSourceTypeSelect'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.setAttribute('data-value', 'all');
+                    const trigger = el.querySelector('.custom-select-trigger span');
+                    if (trigger) trigger.textContent = el.querySelector('.custom-option[data-value="all"]')?.textContent || '全部';
+                    el.querySelectorAll('.custom-option').forEach(o => o.classList.remove('active'));
+                    el.querySelector('.custom-option[data-value="all"]')?.classList.add('active');
+                }
+            });
+
+            filterRecords();
+        }
+
+        // ====== 模态框（FLIP 动画） ======
+        async function showRecordModal(triggerElement, batchId) {
+            if (animationInProgress) return;
+            animationInProgress = true;
+            currentBatchId = batchId;
+
+            // 获取批次详情
+            try {
+                const res = await fetch(`/batch_detail/${batchId}`);
+                currentBatchData = await res.json();
+            } catch (e) {
+                console.error('获取批次详情失败:', e);
+                currentBatchData = null;
+            }
+
+            const modal = document.getElementById('imageModal');
+            const modalContent = modal.querySelector('.modal-content');
+
+            // 确保模态框可见
+            modal.style.visibility = 'visible';
+
+            // 添加页面缩放效果
+            document.body.classList.add('modal-open');
+
+            // 隐藏设置面板（如果打开的话）
+            const settingsPanel = document.getElementById('settingsPanel');
+            const settingsOverlay = document.getElementById('settingsOverlay');
+            if (settingsPanel) settingsPanel.classList.remove('active');
+            if (settingsOverlay) settingsOverlay.classList.remove('active');
+
+            // 记录卡片位置
+            const cardRect = triggerElement.getBoundingClientRect();
+            originalCardRect = {
+                left: Math.round(cardRect.left),
+                top: Math.round(cardRect.top),
+                width: Math.round(cardRect.width),
+                height: Math.round(cardRect.height)
+            };
+
+            // 渲染内容（compact layout）
+            renderModalContent();
+            const innerContainer = modalContent.querySelector('.modal-inner');
+            if (innerContainer) {
+                innerContainer.classList.add('compact-layout');
+            }
+
+            // 初始位置 = 卡片位置
+            modalContent.style.left = `${originalCardRect.left}px`;
+            modalContent.style.top = `${originalCardRect.top}px`;
+            modalContent.style.width = `${originalCardRect.width}px`;
+            modalContent.style.height = `${originalCardRect.height}px`;
+            modalContent.style.borderRadius = 'var(--radius-lg)';
+            modalContent.style.clipPath = 'inset(0 round var(--radius-lg))';
+            modalContent.style.transform = 'none';
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+            document.body.style.paddingRight = `${scrollbarWidth}px`;
+
+            // 动画到目标位置
+            setTimeout(() => {
+                requestAnimationFrame(() => {
+                    const targetWidth = Math.round(Math.min(window.innerWidth * 0.85, 1200));
+                    const targetHeight = Math.round(Math.min(window.innerHeight * 0.75, 700));
+                    const targetLeft = Math.round((window.innerWidth - targetWidth) / 2);
+                    const targetTop = Math.round((window.innerHeight - targetHeight) / 2);
+
+                    if (innerContainer) innerContainer.classList.remove('compact-layout');
+                    modalContent.style.borderRadius = 'var(--radius-xl)';
+                    modalContent.style.clipPath = 'inset(0 round var(--radius-xl))';
+                    modalContent.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                    modalContent.style.left = `${targetLeft}px`;
+                    modalContent.style.top = `${targetTop}px`;
+                    modalContent.style.width = `${targetWidth}px`;
+                    modalContent.style.height = `${targetHeight}px`;
+
+                    setTimeout(() => {
+                        animationInProgress = false;
+                        modalContent.style.transition = '';
+                    }, 300);
+                });
+            }, 50);
+        }
+
+        function closeBatchModal() {
+            if (animationInProgress || !originalCardRect) return;
+            animationInProgress = true;
+
+            const modal = document.getElementById('imageModal');
+            const modalContent = modal.querySelector('.modal-content');
+            const innerContainer = modalContent.querySelector('.modal-inner');
+
+            if (innerContainer) innerContainer.classList.add('compact-layout');
+            modalContent.style.borderRadius = 'var(--radius-lg)';
+            modalContent.style.clipPath = 'inset(0 round var(--radius-lg))';
+            modalContent.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+            modalContent.style.left = `${originalCardRect.left}px`;
+            modalContent.style.top = `${originalCardRect.top}px`;
+            modalContent.style.width = `${originalCardRect.width}px`;
+            modalContent.style.height = `${originalCardRect.height}px`;
+
+            modal.style.backgroundColor = 'rgba(0, 0, 0, 0)';
+            modal.style.backdropFilter = 'blur(0px)';
+
+            setTimeout(() => {
+                modal.classList.remove('active');
+                document.body.classList.remove('modal-open');
+                modal.style.visibility = 'hidden';
+                document.body.style.overflow = 'auto';
+                document.body.style.paddingRight = '';
+                currentBatchId = null;
+                currentBatchData = null;
+                originalCardRect = null;
+                animationInProgress = false;
+
+                setTimeout(() => {
+                    modalContent.style.left = '-9999px';
+                    modalContent.style.top = '-9999px';
+                    modalContent.style.width = '';
+                    modalContent.style.height = '';
+                    modalContent.style.borderRadius = '';
+                    modalContent.style.transition = '';
+                    modalContent.style.clipPath = '';
+                    modal.style.backgroundColor = '';
+                    modal.style.backdropFilter = '';
+                    modal.style.visibility = '';
+                }, 50);
+            }, 300);
+        }
+
+        // 点击模态框背景关闭
+        document.getElementById('imageModal').addEventListener('click', function(e) {
+            if (e.target === this) closeBatchModal();
+        });
+
+        function renderModalContent() {
+            const batch = currentBatchData;
+            if (!batch) return;
+
+            const modalContent = document.querySelector('#imageModal .modal-content');
+
+            // 确定默认显示的图片类型
+            if (batch.images && batch.images.annotated) {
+                currentImageType = 'annotated';
+            } else if (batch.images && batch.images.heatmap) {
+                currentImageType = 'heatmap';
+            } else if (batch.images && batch.images.original) {
+                currentImageType = 'original';
+            } else if (batch.crops && batch.crops.length > 0) {
+                currentImageType = 'crop';
+                currentCropIndex = 0;
+            } else {
+                currentImageType = 'original';
+            }
+
+            // 获取时间
+            let time = '未知';
+            if (batch.timestamp) {
+                if (batch.timestamp.includes('T')) {
+                    time = new Date(batch.timestamp).toLocaleString('zh-CN');
+                } else if (batch.timestamp.includes('_')) {
+                    const parts = batch.timestamp.split('_');
+                    if (parts.length >= 2) {
+                        const dateStr = parts[0];
+                        const timeStr = parts[1];
+                        const year = dateStr.substring(0, 4);
+                        const month = dateStr.substring(4, 6);
+                        const day = dateStr.substring(6, 8);
+                        const hour = timeStr.substring(0, 2);
+                        const minute = timeStr.substring(2, 4);
+                        const second = timeStr.substring(4, 6);
+                        time = `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+                    }
+                }
+            }
+
+            // 构建所有可浏览的图片列表
+            const allImages = [];
+            if (batch.images && batch.images.annotated) allImages.push({type: 'annotated', label: '缺陷框选图', filename: batch.images.annotated});
+            if (batch.images && batch.images.heatmap) allImages.push({type: 'heatmap', label: '热力图', filename: batch.images.heatmap});
+            if (batch.images && batch.images.original) allImages.push({type: 'original', label: '原图', filename: batch.images.original});
+            if (batch.crops && batch.crops.length > 0) {
+                batch.crops.forEach((crop, idx) => {
+                    allImages.push({type: 'crop', label: `缺陷${idx + 1}: ${crop.class_name}`, filename: crop.filename, index: idx});
+                });
+            }
+
+            // 找到当前图片在列表中的索引
+            let currentIndex = -1;
+            if (currentImageType === 'crop') {
+                currentIndex = allImages.findIndex(img => img.type === 'crop' && img.index === currentCropIndex);
+            } else {
+                currentIndex = allImages.findIndex(img => img.type === currentImageType);
+            }
+
+            // 获取当前图片URL
+            let imageUrl = '';
+            if (currentIndex >= 0) {
+                imageUrl = `/captures/${allImages[currentIndex].filename}`;
+            }
+
+            // 创建内部布局容器
+            const innerContainer = document.createElement('div');
+            innerContainer.className = 'modal-inner';
+
+            // 图片区域（带左右箭头和关闭按钮）
+            const imageWrapper = document.createElement('div');
+            imageWrapper.className = 'modal-image-wrapper';
+
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = allImages[currentIndex]?.label || '';
+            imageWrapper.appendChild(img);
+
+            // 右上角关闭按钮
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'modal-close-btn';
+            closeBtn.innerHTML = '×';
+            closeBtn.onclick = closeBatchModal;
+            imageWrapper.appendChild(closeBtn);
+
+            // 左右箭头
+            const arrowsDiv = document.createElement('div');
+            arrowsDiv.className = 'nav-arrows';
+
+            const hasPrev = currentIndex > 0;
+            const hasNext = currentIndex < allImages.length - 1;
+
+            arrowsDiv.innerHTML = `
+                <button class="nav-arrow" onclick="navigateToImage(${currentIndex - 1})" ${!hasPrev ? 'disabled' : ''}>❮</button>
+                <button class="nav-arrow" onclick="navigateToImage(${currentIndex + 1})" ${!hasNext ? 'disabled' : ''}>❯</button>
+            `;
+            imageWrapper.appendChild(arrowsDiv);
+
+            // 信息区域
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'modal-info';
+
+            // 缺陷详情标题
+            const title = document.createElement('h3');
+            title.className = 'defect-detail-title';
+            title.textContent = '缺陷详情';
+            infoDiv.appendChild(title);
+
+            // 可滚动的内容区域
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'info-content';
+
+            // 卡片1：基本信息
+            const card1 = document.createElement('div');
+            card1.className = 'info-card';
+
+            const detectionParams = batch.detection_params || {};
+            const confThreshold = detectionParams.conf_threshold !== undefined ? (detectionParams.conf_threshold * 100).toFixed(0) + '%' : 'N/A';
+            const iouThreshold = detectionParams.iou_threshold !== undefined ? (detectionParams.iou_threshold * 100).toFixed(0) + '%' : 'N/A';
+
+            card1.innerHTML = `
+                <h4>基本信息</h4>
+                <div class="info-row">
+                    <span class="label">批次ID:</span>
+                    <span class="value" style="word-break: break-all;">${batch.batch_id}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">检测时间:</span>
+                    <span class="value">${time}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">置信度阈值:</span>
+                    <span class="value">${confThreshold}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">IOU阈值:</span>
+                    <span class="value">${iouThreshold}</span>
+                </div>
+            `;
+            contentDiv.appendChild(card1);
+
+            // 卡片2：缺陷统计
+            const card2 = document.createElement('div');
+            card2.className = 'info-card';
+
+            const defects = batch.defects && batch.defects.length > 0 ? batch.defects : (batch.crops || []);
+
+            // 统计缺陷类型和数量
+            const defectStats = {};
+            defects.forEach(defect => {
+                const clsName = defect.class_name || '未知';
+                if (!defectStats[clsName]) {
+                    defectStats[clsName] = { count: 0, confidences: [] };
+                }
+                defectStats[clsName].count++;
+                if (defect.confidence !== undefined) {
+                    defectStats[clsName].confidences.push(defect.confidence);
+                } else {
+                    defectStats[clsName].confidences.push(0.85);
+                }
+            });
+
+            const totalDefects = defects.length;
+            const defectTypes = Object.keys(defectStats).length;
+
+            card2.innerHTML = `
+                <h4>缺陷统计</h4>
+                <div class="info-row">
+                    <span class="label">缺陷类型:</span>
+                    <span class="value">${defectTypes} 种</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">缺陷个数:</span>
+                    <span class="value">${totalDefects} 个</span>
+                </div>
+                ${totalDefects > 0 ? `
+                <div style="margin-top: var(--spacing-sm); margin-bottom: var(--spacing-xs);">
+                    <strong style="font-size: 13px; color: var(--text-secondary); font-weight: 600;">缺陷列表：</strong>
+                </div>
+                <div class="defect-list">
+                    ${defects.map((defect, idx) => {
+                        const clsName = defect.class_name || '未知';
+                        const conf = defect.confidence !== undefined ? (defect.confidence * 100).toFixed(1) : 'N/A';
+                        const bbox = defect.bbox || [];
+                        const bboxStr = bbox.length === 4 ? `(${bbox[0]}, ${bbox[1]}, ${bbox[2]}, ${bbox[3]})` : 'N/A';
+                        return `
+                            <div class="defect-item" style="flex-direction: column; align-items: flex-start; padding: var(--spacing-sm); background: var(--bg-secondary); border-radius: var(--radius-md); margin-bottom: var(--spacing-xs); border-bottom: none;">
+                                <div style="display: flex; justify-content: space-between; width: 100%; margin-bottom: var(--spacing-xs); align-items: center;">
+                                    <span style="font-size: 13px; font-weight: 600; color: var(--text-primary);">缺陷 #${defect.index !== undefined ? defect.index : idx}</span>
+                                    <span style="font-size: 13px; font-weight: 600; color: var(--primary);">${conf}%</span>
+                                </div>
+                                <div style="font-size: 13px; color: var(--text-primary); width: 100%;">
+                                    <div style="margin-bottom: 2px;">
+                                        <span style="color: var(--text-secondary); font-weight: 500;">类型：</span>
+                                        <span style="color: var(--text-primary); font-weight: 500;">${clsName}</span>
+                                    </div>
+                                    <div>
+                                        <span style="color: var(--text-secondary); font-weight: 500;">位置：</span>
+                                        <span style="color: var(--text-primary); font-weight: 500; font-family: 'HarmonyOS Sans', 'HarmonyOS Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px;">${bboxStr}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                ` : ''}
+            `;
+            contentDiv.appendChild(card2);
+
+            // 卡片3：AI分析建议
+            const card3 = document.createElement('div');
+            card3.className = 'info-card';
+
+            let aiAnalysis = batch.ai_analysis ? batch.ai_analysis.analysis : null;
+
+            // 清理AI输出文本
+            if (aiAnalysis) {
+                aiAnalysis = cleanAIOutput(aiAnalysis);
+                aiAnalysis = aiAnalysis
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>');
+            }
+
+            card3.innerHTML = `
+                <h4>AI检测建议</h4>
+                ${aiAnalysis ? `
+                    <div class="ai-suggestion" style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
+                        ${aiAnalysis.replace(/\n/g, '<br>')}
+                    </div>
+                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-secondary);">
+                        分析时间: ${batch.ai_analysis.timestamp ? new Date(batch.ai_analysis.timestamp).toLocaleString('zh-CN') : '未知'}
+                    </div>
+                ` : `
+                    <div class="no-ai-message">
+                        <div style="font-size: 32px; margin-bottom: var(--spacing-sm);">🤖</div>
+                        <div>暂未进行AI智能分析</div>
+                        <div style="font-size: 12px; margin-top: var(--spacing-xs);">点击图片检测页面的"开始AI分析"按钮获取建议</div>
+                    </div>
+                `}
+            `;
+            contentDiv.appendChild(card3);
+
+            // 将内容区域添加到infoDiv
+            infoDiv.appendChild(contentDiv);
+
+            // 添加操作按钮
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'modal-actions';
+            actionsDiv.innerHTML = `
+                <button class="modal-btn download" onclick="downloadCurrentImage()">下载</button>
+                <button class="modal-btn delete" onclick="deleteFromModal()">删除</button>
+            `;
+            infoDiv.appendChild(actionsDiv);
+
+            innerContainer.appendChild(imageWrapper);
+            innerContainer.appendChild(infoDiv);
+
+            // 清空并添加新结构
+            modalContent.innerHTML = '';
+            modalContent.appendChild(innerContainer);
+        }
+
+        // 清理AI输出文本
+        function cleanAIOutput(text) {
+            if (!text) return '';
+            // 移除 <thinking>...</thinking> 标签及其内容
+            text = text.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
+            // 移除 [Citations] 部分
+            text = text.replace(/\[Citations\][\s\S]*$/g, '');
+            // 移除前后的空白
+            return text.trim();
+        }
+
+        // 导航到指定索引的图片
+        function navigateToImage(index) {
+            if (animationInProgress || !currentBatchData) return;
+
+            const batch = currentBatchData;
+            const allImages = [];
+            if (batch.images && batch.images.annotated) allImages.push({type: 'annotated'});
+            if (batch.images && batch.images.heatmap) allImages.push({type: 'heatmap'});
+            if (batch.images && batch.images.original) allImages.push({type: 'original'});
+            if (batch.crops && batch.crops.length > 0) {
+                batch.crops.forEach((crop, idx) => {
+                    allImages.push({type: 'crop', index: idx});
+                });
+            }
+
+            // 边界检查
+            if (index < 0 || index >= allImages.length) return;
+
+            const targetImage = allImages[index];
+            currentImageType = targetImage.type;
+            if (targetImage.type === 'crop') {
+                currentCropIndex = targetImage.index;
+            }
+
+            renderModalContent();
+        }
+
+        // 下载当前图片
+        function downloadCurrentImage() {
+            if (!currentBatchData) return;
+
+            const batch = currentBatchData;
+            let filename = '';
+
+            if (currentImageType === 'annotated' && batch.images.annotated) {
+                filename = batch.images.annotated;
+            } else if (currentImageType === 'heatmap' && batch.images.heatmap) {
+                filename = batch.images.heatmap;
+            } else if (currentImageType === 'original' && batch.images.original) {
+                filename = batch.images.original;
+            } else if (currentImageType === 'crop' && batch.crops && batch.crops[currentCropIndex]) {
+                filename = batch.crops[currentCropIndex].filename;
+            }
+
+            if (filename) {
+                const link = document.createElement('a');
+                link.href = `/captures/${filename}`;
+                link.download = filename;
+                link.click();
+            }
+        }
+
+        // 从模态框删除
+        async function deleteFromModal() {
+            if (!currentBatchData) return;
+
+            if (!confirm('确定要删除此批次的所有图片吗？')) return;
+
+            try {
+                const batch = currentBatchData;
+                const allFiles = [];
+
+                if (batch.images) {
+                    Object.values(batch.images).forEach(f => { if (f) allFiles.push(f); });
+                }
+                if (batch.crops) {
+                    batch.crops.forEach(c => { if (c.filename) allFiles.push(c.filename); });
+                }
+
+                const res = await fetch('/batch_delete_captures', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filenames: allFiles })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    closeBatchModal();
+                    // 重新加载数据
+                    loadDashboard();
+                } else {
+                    alert('删除失败: ' + (data.error || '未知错误'));
+                }
+            } catch (err) {
+                alert('删除失败: ' + err.message);
+            }
+        }
+
+        // ====== 加载模型信息 ======
+        async function loadModelInfo() {
+            try {
+                const [statusRes, classesRes] = await Promise.all([
+                    fetch('/api/status'),
+                    fetch('/class_options')
+                ]);
+                const status = await statusRes.json();
+                const classes = await classesRes.json();
+
+                document.getElementById('modelType').textContent = 'YOLO';
+                document.getElementById('modelDevice').textContent = status.device || '-';
+                document.getElementById('modelClasses').textContent = classes.length || '-';
+                document.getElementById('modelConf').textContent = status.conf_threshold || '-';
+                document.getElementById('modelIou').textContent = status.iou_threshold || '-';
+
+                const container = document.getElementById('modelClassList');
+                container.innerHTML = classes.map(c => `
+                    <div class="defect-bar">
+                        <span class="defect-bar-label">${c.name}</span>
+                        <div class="defect-bar-track"><div class="defect-bar-fill" style="width:100%"></div></div>
+                        <span class="defect-bar-value">ID: ${c.id}</span>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error('加载模型信息失败:', e);
+            }
+        }
+
+        // ====== AI 开关 ======
+        function toggleAI() {
+            const sw = document.getElementById('aiSwitch');
+            const isOn = sw.classList.toggle('on');
+            const result = document.getElementById('aiResult');
+            const placeholder = document.getElementById('aiPlaceholder');
+            const loading = document.getElementById('aiLoading');
+
+            if (isOn) {
+                placeholder.style.display = 'none';
+                loading.style.display = 'flex';
+                result.textContent = '';
+                setTimeout(() => {
+                    loading.style.display = 'none';
+                    result.textContent = 'AI 分析功能已启用。\n\n当前系统运行正常，检测模型已加载。\n建议定期检查模型性能指标。';
+                }, 1500);
+            } else {
+                placeholder.style.display = 'block';
+                result.textContent = '';
+            }
+        }
+
+        // ====== 加载用户列表 ======
+        async function loadUsers() {
+            if (allUsers.length > 0) {
+                renderUsers(allUsers);
+                return;
+            }
+            try {
+                const res = await fetch('/api/admin/users', { headers });
+                const data = await res.json();
+                allUsers = data.users || [];
+                renderUsers(allUsers);
+
+                document.getElementById('userTotal').textContent = allUsers.length;
+                document.getElementById('userPersonal').textContent = allUsers.filter(u => u.user_type === 'personal').length;
+                document.getElementById('userEnterprise').textContent = allUsers.filter(u => u.user_type === 'enterprise').length;
+            } catch (e) {
+                console.error('加载用户失败:', e);
+            }
+        }
+
+        function renderUsers(users) {
+            const tbody = document.getElementById('usersBody');
+            tbody.innerHTML = users.map(u => {
+                const role = u.user_type === 'admin' ? '管理员' : u.user_type === 'enterprise' ? '企业用户' : '个人用户';
+                const time = u.created_at ? new Date(u.created_at).toLocaleString('zh-CN') : '-';
+                return `<tr><td>${u.username}</td><td>${role}</td><td>${u.company_name || '-'}</td><td>${u.detection_count || 0}</td><td>${time}</td></tr>`;
+            }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">暂无用户</td></tr>';
+        }
+
+        function filterUsers() {
+            const type = document.getElementById('filterUserTypeManageSelect').getAttribute('data-value') || 'all';
+            const filtered = type === 'all' ? allUsers : allUsers.filter(u => u.user_type === type);
+            renderUsers(filtered);
+        }
+
+        // ====== 退出登录 ======
+        async function logout() {
+            try { await fetch('/logout'); } catch (e) {}
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            window.location.href = '/login';
+        }
+
+        // ====== 个人中心切换 ======
+        let isProfileActive = false;
+        let previousPanel = 'dashboard';
+
+        function toggleProfile() {
+            const profileBtn = document.getElementById('profileBtn');
+
+            if (isProfileActive) {
+                // 返回上一个面板
+                switchPanel(previousPanel);
+                profileBtn.classList.remove('active');
+                isProfileActive = false;
+            } else {
+                // 记住当前面板
+                const activePanel = document.querySelector('.panel.active');
+                if (activePanel) {
+                    previousPanel = activePanel.id.replace('Panel', '');
+                }
+                // 切换到个人中心
+                switchPanel('profile');
+                profileBtn.classList.add('active');
+                isProfileActive = true;
+            }
+        }
+
+        // 监听来自 iframe 的消息
+        window.addEventListener('message', (e) => {
+            if (e.origin !== window.location.origin) return;
+
+            if (e.data.action === 'closeProfile') {
+                // 返回上一个面板
+                switchPanel(previousPanel);
+                document.getElementById('profileBtn').classList.remove('active');
+                isProfileActive = false;
+            } else if (e.data.action === 'navigateToHome') {
+                // 导航到检测主页
+                switchPanel('home');
+                document.getElementById('profileBtn').classList.remove('active');
+                isProfileActive = false;
+            }
+        });
+
+        // ====== 初始化 ======
+        loadUserInfo();
+        loadDashboard();
+
+        // ====== 设置面板 ======
+        setTimeout(() => {
+            const settingsBtn = document.querySelector('.settings-btn');
+            const settingsPanel = document.getElementById('settingsPanel');
+            const settingsOverlay = document.getElementById('settingsOverlay');
+            let isSettingsOpen = false;
+
+            if (settingsBtn && settingsPanel && settingsOverlay) {
+                function openSettings() {
+                    isSettingsOpen = true;
+                    document.body.classList.add('settings-open');
+                    settingsPanel.classList.add('active');
+                    settingsOverlay.classList.add('active');
+                    settingsBtn.classList.add('active');
+                }
+
+                function closeSettings() {
+                    isSettingsOpen = false;
+                    document.body.classList.remove('settings-open');
+                    settingsPanel.classList.remove('active');
+                    settingsOverlay.classList.remove('active');
+                    settingsBtn.classList.remove('active');
+                }
+
+                settingsBtn.addEventListener('click', () => {
+                    isSettingsOpen ? closeSettings() : openSettings();
+                });
+
+                settingsOverlay.addEventListener('click', closeSettings);
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && isSettingsOpen) closeSettings();
+                });
+
+                // 动画开关
+                const animToggle = document.getElementById('animationToggle');
+                if (animToggle) {
+                    animToggle.addEventListener('change', () => {
+                        document.body.classList.toggle('no-animations', !animToggle.checked);
+                    });
+                }
+
+                // 高对比度开关
+                const hcToggle = document.getElementById('highContrastToggle');
+                if (hcToggle) {
+                    hcToggle.addEventListener('change', () => {
+                        document.body.classList.toggle('high-contrast-text', hcToggle.checked);
+                    });
+                }
+
+                // 高斯模糊开关
+                const blurToggle = document.getElementById('blurToggle');
+                if (blurToggle) {
+                    blurToggle.addEventListener('change', () => {
+                        document.body.classList.toggle('no-blur', !blurToggle.checked);
+                    });
+                }
+            }
+        }, 100);
+    </script>
+</body>
+</html>

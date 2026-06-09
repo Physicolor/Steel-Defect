@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: steel-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend:/app
+      - ../data:/app/data
+      - ../uploads:/app/uploads
+      - ../captures:/app/captures
+      - ../logs:/app/logs
+      - ../models:/app/models
+    environment:
+      - DEBUG=True
+      - HOST=0.0.0.0
+      - PORT=8000
+      - CHROMADB_HOST=chromadb
+      - CHROMADB_PORT=8000
+      - SECRET_KEY=steel-defect-secret-key-2026
+      - DATABASE_URL=sqlite:///./data/steel_defect.db
+    depends_on:
+      - chromadb
+    networks:
+      - steel-network
+    restart: unless-stopped
+
+  # 前端服务
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    container_name: steel-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - steel-network
+    restart: unless-stopped
+
+  # ChromaDB服务
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: steel-chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - ../data/chromadb:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - ANONYMIZED_TELEMETRY=FALSE
+    networks:
+      - steel-network
+    restart: unless-stopped
+
+  # Redis服务（可选，用于缓存）
+  redis:
+    image: redis:7-alpine
+    container_name: steel-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - steel-network
+    restart: unless-stopped
+
+networks:
+  steel-network:
+    driver: bridge
+
+volumes:
+  redis-data:

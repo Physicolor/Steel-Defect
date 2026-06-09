@@ -1,0 +1,57 @@
+[
+  {
+    "id": "admin_001",
+    "username": "admin",
+    "password": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "email": "admin@steeldefect.com",
+    "user_type": "admin",
+    "is_active": true
+  },
+  {
+    "id": "user_personal_001",
+    "username": "zhangsan",
+    "password": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "email": "zhangsan@example.com",
+    "phone": "13800138001",
+    "user_type": "personal",
+    "is_active": true
+  },
+  {
+    "id": "user_personal_002",
+    "username": "lisi",
+    "password": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "email": "lisi@example.com",
+    "phone": "13800138002",
+    "user_type": "personal",
+    "is_active": true
+  },
+  {
+    "id": "user_personal_003",
+    "username": "wangwu",
+    "password": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "email": "wangwu@example.com",
+    "phone": "13800138003",
+    "user_type": "personal",
+    "is_active": true
+  },
+  {
+    "id": "user_enterprise_001",
+    "username": "baosteel",
+    "password": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "email": "baosteel@example.com",
+    "phone": "13800138010",
+    "company_name": "Baoshan Iron & Steel Co.",
+    "user_type": "enterprise",
+    "is_active": true
+  },
+  {
+    "id": "user_enterprise_002",
+    "username": "wisco",
+    "password": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "email": "wisco@example.com",
+    "phone": "13800138011",
+    "company_name": "Wuhan Iron & Steel Co.",
+    "user_type": "enterprise",
+    "is_active": true
+  }
+]

@@ -1,43 +1,69 @@
 @echo off
-chcp 65001 >nul
-title 钢材缺陷检测系统
+setlocal enabledelayedexpansion
+set "CONDA_ENV=D:\Users\12404\anaconda3\envs\torch"
+set "CONDA_BIN=D:\Users\12404\anaconda3\condabin\conda.bat"
+set "PROJECT_ROOT=%~dp0"
+set "PROJECT_ROOT=%PROJECT_ROOT:~0,-1%"
 
-echo ================================
-echo   钢材缺陷检测系统 v2.0
-echo ================================
+set "PATH=%CONDA_ENV%;%CONDA_ENV%\Scripts;%CONDA_ENV%\Library\bin;%PATH%"
+
 echo.
+echo  ==============================
+echo    Steel Defect Detection System
+echo  ==============================
+echo.
+echo  [1] Start Backend  (FastAPI :8000)
+echo  [2] Start Frontend (React :3000)
+echo  [3] Start All
+echo  [4] Exit
+echo.
+set /p choice="Select (1-4): "
 
-:: 检查 Python
-python --version >nul 2>&1
-if errorlevel 1 (
-    py --version >nul 2>&1
-    if errorlevel 1 (
-        echo [错误] 未检测到 Python，请先安装 Python 3.10+
-        pause & exit /b 1
-    ) else (
-        set PYTHON=py
-    )
-) else (
-    set PYTHON=python
+if "%choice%"=="1" goto backend
+if "%choice%"=="2" goto frontend
+if "%choice%"=="3" goto all
+if "%choice%"=="4" goto done
+echo Invalid choice.
+pause
+goto done
+
+:backend
+echo.
+echo [INFO] Starting FastAPI on port 8000...
+pushd "%PROJECT_ROOT%\backend"
+python start.py
+popd
+goto done
+
+:frontend
+echo.
+echo [INFO] Starting React on port 3000...
+pushd "%PROJECT_ROOT%\frontend"
+npm start
+popd
+goto done
+
+:all
+echo.
+echo [INFO] Writing launcher script...
+> "%TEMP%\start_backend.bat" (
+    echo @echo off
+    echo set "PATH=%CONDA_ENV%;%CONDA_ENV%\Scripts;%CONDA_ENV%\Library\bin;%%PATH%%"
+    echo cd /d "%PROJECT_ROOT%\backend"
+    echo python start.py
+    echo pause
 )
+echo [INFO] Starting FastAPI on port 8000...
+start "FastAPI" "%TEMP%\start_backend.bat"
+timeout /t 5 /nobreak >nul
+echo [INFO] Opening browser...
+start "" "http://localhost:8000/login"
+echo [INFO] Starting React on port 3000...
+pushd "%PROJECT_ROOT%\frontend"
+npm start
+popd
+goto done
 
-:: 检查依赖
-%PYTHON% -c "import flask, cv2, ultralytics" 2>nul
-if errorlevel 1 (
-    echo [提示] 正在安装依赖包（首次运行可能需要几分钟）...
-    %PYTHON% -m pip install -r requirements.txt --quiet
-    if errorlevel 1 (
-        echo [错误] 依赖安装失败，请手动执行: pip install -r requirements.txt
-        pause & exit /b 1
-    )
-    echo [完成] 依赖安装成功
-)
-
-echo.
-echo [启动] 服务地址: http://localhost:5000
-echo [停止] 按 Ctrl+C 终止服务
-echo.
-
-%PYTHON% app.py
-
+:done
+endlocal
 pause

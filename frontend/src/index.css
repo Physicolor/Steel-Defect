@@ -25,8 +25,7 @@
     --input: 220 15% 90%;
     --ring: 210 100% 50%;
     --radius: 0.75rem;
-    
-    /* Custom design tokens for floating widget */
+
     --widget-bg: 0 0% 100%;
     --widget-shadow: 0 8px 32px hsl(210 50% 30% / 0.15);
     --widget-glow: 0 0 40px hsl(var(--primary-glow) / 0.3);
@@ -40,8 +39,6 @@
     --foreground: 0 0% 95%;
     --card: 220 25% 12%;
     --card-foreground: 0 0% 95%;
-    --popover: 220 25% 12%;
-    --popover-foreground: 0 0% 95%;
     --primary: 210 100% 60%;
     --primary-foreground: 0 0% 100%;
     --primary-glow: 210 100% 75%;
@@ -65,7 +62,15 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  code {
+    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
   }
 }
 
@@ -73,11 +78,9 @@
   .glass-effect {
     @apply backdrop-blur-xl bg-white/80 dark:bg-black/60 border border-white/20 dark:border-white/10;
   }
-  
   .shadow-elegant {
     box-shadow: var(--widget-shadow);
   }
-  
   .shadow-glow {
     box-shadow: var(--widget-glow);
   }
