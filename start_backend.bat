@@ -18,21 +18,18 @@ echo 正在检查依赖...
 pip show fastapi >nul 2>&1
 if errorlevel 1 (
     echo 正在安装依赖...
-    cd backend
     pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-    cd ..
 )
 
 REM 检查.env文件
-if not exist "backend\.env" (
+if not exist ".env" (
     echo 提示: 未找到.env文件，将使用默认配置
     echo 建议复制.env.example为.env并修改配置
-    copy backend\.env.example backend\.env
+    copy .env.example .env
 )
 
 REM 启动后端服务
 echo 正在启动后端服务...
-cd backend
 python start.py --reload
 
 pause

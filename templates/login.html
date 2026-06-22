@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>登录 - 钢材缺陷检测系统</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+        .login-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'HarmonyOS Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        .login-card {
+            width: 420px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            padding: 40px;
+            animation: slideUp 0.4s ease-out;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .login-brand {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .login-brand .logo {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 16px;
+            color: #0055FF;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 85, 255, 0.08);
+            border-radius: 16px;
+        }
+        .login-brand h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #0F172A;
+            margin: 0 0 4px;
+        }
+        .login-brand p {
+            font-size: 13px;
+            color: rgba(0, 0, 0, 0.45);
+            margin: 0;
+        }
+        .login-tabs {
+            display: flex;
+            border-bottom: 2px solid #f0f0f0;
+            margin-bottom: 24px;
+            position: relative;
+        }
+        .login-tabs .tab {
+            flex: 1;
+            text-align: center;
+            padding: 10px 0;
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(0, 0, 0, 0.45);
+            cursor: pointer;
+            transition: color 0.2s;
+            background: none;
+            border: none;
+            outline: none;
+        }
+        .login-tabs .tab.active {
+            color: #0055FF;
+        }
+        .login-tabs .slider {
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 50%;
+            height: 2px;
+            background: #0055FF;
+            transition: transform 0.3s ease;
+        }
+        .login-tabs .slider.register {
+            transform: translateX(100%);
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #0F172A;
+            margin-bottom: 6px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            color: #0F172A;
+            background: #fff;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .form-input:focus {
+            border-color: #0055FF;
+            box-shadow: 0 0 0 3px rgba(0, 85, 255, 0.1);
+        }
+        .form-input::placeholder {
+            color: rgba(0, 0, 0, 0.3);
+        }
+        .form-select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            color: #0F172A;
+            background: #fff;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+            outline: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+        }
+        .form-select:focus {
+            border-color: #0055FF;
+            box-shadow: 0 0 0 3px rgba(0, 85, 255, 0.1);
+        }
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #0055FF 0%, #0066FF 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+            margin-top: 8px;
+        }
+        .login-btn:hover {
+            opacity: 0.9;
+        }
+        .login-btn:active {
+            transform: scale(0.98);
+        }
+        .login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .error-msg {
+            color: #ef4444;
+            font-size: 13px;
+            margin-top: 8px;
+            display: none;
+            text-align: center;
+        }
+        .error-msg.show {
+            display: block;
+        }
+        .form-panel {
+            display: none;
+        }
+        .form-panel.active {
+            display: block;
+        }
+        .footer-text {
+            text-align: center;
+            font-size: 12px;
+            color: rgba(0, 0, 0, 0.3);
+            margin-top: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-card">
+            <div class="login-brand">
+                <div class="logo">
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 12L20 6L32 12V28L20 34L8 28V12Z" fill="currentColor" opacity="0.9"/>
+                        <path d="M8 12L20 18L32 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M20 18V34" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M8 12V28L20 34" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M32 12V28L20 34" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <line x1="12" y1="15" x2="12" y2="25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                        <line x1="28" y1="15" x2="28" y2="25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                    </svg>
+                </div>
+                <h1>钢材缺陷检测系统</h1>
+                <p>基于AI的智能钢材缺陷检测平台</p>
+            </div>
+
+            <div class="login-tabs">
+                <button class="tab active" data-tab="login">登录</button>
+                <button class="tab" data-tab="register">注册</button>
+                <div class="slider"></div>
+            </div>
+
+            <!-- 登录表单 -->
+            <div id="loginPanel" class="form-panel active">
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label>用户名</label>
+                        <input type="text" class="form-input" name="username" placeholder="请输入用户名" required />
+                    </div>
+                    <div class="form-group">
+                        <label>密码</label>
+                        <input type="password" class="form-input" name="password" placeholder="请输入密码" required />
+                    </div>
+                    <div id="loginError" class="error-msg"></div>
+                    <button type="submit" class="login-btn">登录</button>
+                </form>
+            </div>
+
+            <!-- 注册表单 -->
+            <div id="registerPanel" class="form-panel">
+                <form id="registerForm">
+                    <div class="form-group">
+                        <label>用户名</label>
+                        <input type="text" class="form-input" name="username" placeholder="至少3个字符" required minlength="3" />
+                    </div>
+                    <div class="form-group">
+                        <label>密码</label>
+                        <input type="password" class="form-input" name="password" placeholder="至少6个字符" required minlength="6" />
+                    </div>
+                    <div class="form-group">
+                        <label>确认密码</label>
+                        <input type="password" class="form-input" name="confirmPassword" placeholder="再次输入密码" required />
+                    </div>
+                    <div class="form-group">
+                        <label>用户类型</label>
+                        <select class="form-select" name="user_type" required>
+                            <option value="personal">个人用户</option>
+                            <option value="enterprise">企业用户</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>邮箱（可选）</label>
+                        <input type="email" class="form-input" name="email" placeholder="your@email.com" />
+                    </div>
+                    <div class="form-group">
+                        <label>手机号（可选）</label>
+                        <input type="text" class="form-input" name="phone" placeholder="请输入手机号" />
+                    </div>
+                    <div id="registerError" class="error-msg"></div>
+                    <button type="submit" class="login-btn">注册</button>
+                </form>
+            </div>
+
+            <div class="footer-text">© 2026 钢材缺陷检测系统. All rights reserved.</div>
+        </div>
+    </div>
+
+    <script>
+        // Tab 切换
+        const tabs = document.querySelectorAll('.tab');
+        const slider = document.querySelector('.slider');
+        const panels = document.querySelectorAll('.form-panel');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                const target = tab.dataset.tab;
+                slider.classList.toggle('register', target === 'register');
+                panels.forEach(p => p.classList.remove('active'));
+                document.getElementById(target + 'Panel').classList.add('active');
+                // 清除错误
+                document.querySelectorAll('.error-msg').forEach(e => {
+                    e.classList.remove('show');
+                    e.textContent = '';
+                });
+            });
+        });
+
+        // 登录
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const btn = form.querySelector('.login-btn');
+            const errorEl = document.getElementById('loginError');
+            errorEl.classList.remove('show');
+            btn.disabled = true;
+            btn.textContent = '登录中...';
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: form.username.value,
+                        password: form.password.value
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    localStorage.setItem('access_token', data.access_token);
+                    localStorage.setItem('refresh_token', data.refresh_token);
+                    window.location.href = '/';
+                } else {
+                    errorEl.textContent = data.detail || '登录失败';
+                    errorEl.classList.add('show');
+                }
+            } catch (err) {
+                errorEl.textContent = '网络错误，请重试';
+                errorEl.classList.add('show');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '登录';
+            }
+        });
+
+        // 注册
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const btn = form.querySelector('.login-btn');
+            const errorEl = document.getElementById('registerError');
+            errorEl.classList.remove('show');
+
+            if (form.password.value !== form.confirmPassword.value) {
+                errorEl.textContent = '两次输入的密码不一致';
+                errorEl.classList.add('show');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '注册中...';
+
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: form.username.value,
+                        password: form.password.value,
+                        email: form.email.value || undefined,
+                        phone: form.phone.value || undefined,
+                        user_type: form.user_type.value
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    // 注册成功，切到登录 tab
+                    tabs[0].click();
+                    errorEl.textContent = '';
+                    alert('注册成功，请登录');
+                } else {
+                    errorEl.textContent = data.detail || '注册失败';
+                    errorEl.classList.add('show');
+                }
+            } catch (err) {
+                errorEl.textContent = '网络错误，请重试';
+                errorEl.classList.add('show');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '注册';
+            }
+        });
+    </script>
+</body>
+</html>

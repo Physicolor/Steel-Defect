@@ -1,6 +1,0 @@
-<svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- 文件夹图标 -->
-  <path d="M2 7C2 5.89543 2.89543 5 4 5H10L14 9H24C25.1046 9 26 9.89543 26 11V21C26 22.1046 25.1046 23 24 23H4C2.89543 23 2 22.1046 2 21V7Z" fill="white" opacity="0.95"/>
-  <path d="M2 9H26V21C26 22.1046 25.1046 23 24 23H4C2.89543 23 2 22.1046 2 21V9Z" fill="white" opacity="0.85"/>
-  <path d="M2 7C2 5.89543 2.89543 5 4 5H10L14 9H4C2.89543 9 2 9.89543 2 11V7Z" fill="white" opacity="0.75"/>
-</svg>

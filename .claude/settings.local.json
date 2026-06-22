@@ -29,7 +29,11 @@
       "Bash(\"D:/Users/12404/anaconda3/envs/torch/python\" manage.py runserver 0.0.0.0:5000)",
       "Bash(curl -s http://127.0.0.1:5000/health/)",
       "Bash(curl *)",
-      "Bash(D:/Users/12404/anaconda3/envs/torch/python manage.py shell -c ' *)"
+      "Bash(D:/Users/12404/anaconda3/envs/torch/python manage.py shell -c ' *)",
+      "Bash(pwd -P)",
+      "Bash(nohup python start.py)",
+      "Bash(echo \"Server starting, PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8000/login)"
     ]
   }
 }

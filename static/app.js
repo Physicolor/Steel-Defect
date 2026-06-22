@@ -6,7 +6,6 @@
   const cameraSelect   = $('cameraSelect');
   const modeEl         = $('mode');
   const videoFeed      = $('videoFeed');
-  const canvas         = $('canvas');
   const redClassList   = $('redClassList');
   const eventsList     = $('eventsList');
 
@@ -167,23 +166,38 @@
   }
 
   // ===== 摄像头切换 =====
+  // 防止重入标记，避免弹窗循环
+  let _switchCameraLock = false;
+
   async function switchCamera() {
+    if (_switchCameraLock) return;
+    _switchCameraLock = true;
+
     const type = cameraSelect.value;
-
-    // 如果请求的类型与当前状态相同，跳过（防止syncCameraStatus触发的重复调用）
-    if (type === currentCameraStatus) return;
-
     const overlay = $('overlayMessage');
     const statusCam = $('statusCamera');
     const camNames = { 'none': '已关闭', 'local': '电脑摄像头', 'ip': 'IP摄像头' };
+
+    // 辅助函数：直接更新开关按钮 UI
+    function updateSwitchUI(status) {
+      const cameraSwitch = document.querySelector('.camera-switch');
+      if (cameraSwitch) {
+        if (status === 'local' || status === 'ip') {
+          cameraSwitch.classList.add('active');
+        } else {
+          cameraSwitch.classList.remove('active');
+        }
+      }
+    }
 
     // IP摄像头需要用户输入地址
     if (type === 'ip') {
       const ip = await showIPModal();
       if (!ip) {
         cameraSelect.value = currentCameraStatus;
-        // 【关键】触发 change 事件，更新开关状态
-        cameraSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        // 直接更新开关按钮 UI，不触发 change 事件（避免无限弹窗）
+        updateSwitchUI(currentCameraStatus);
+        _switchCameraLock = false;
         return;
       }
       
@@ -209,47 +223,50 @@
       } catch (err) {
         if (overlay) { overlay.textContent = '连接失败: ' + err.message; overlay.hidden = false; }
         cameraSelect.value = currentCameraStatus;
-        // 【关键】触发 change 事件，更新开关状态
-        cameraSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        updateSwitchUI(currentCameraStatus);
       }
+      _switchCameraLock = false;
       return;
     }
 
     // 本地/关闭
     if (overlay) { overlay.hidden = false; overlay.textContent = '正在切换摄像头...'; }
-    
+
     try {
-      const r = await fetch('/set_camera', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ camera_type: type })
-      });
-      
-      const d = await r.json();
-      if (!r.ok || !d.success) throw new Error((d || {}).error || '切换失败');
-      
+      if (type === 'none') {
+        // 关闭摄像头：调用 /stop_camera 释放资源
+        await fetch('/stop_camera', { method: 'POST' }).catch(() => {});
+      } else {
+        // 开启摄像头
+        const r = await fetch('/set_camera', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ camera_type: type })
+        });
+        const d = await r.json();
+        if (!r.ok || !d.success) throw new Error((d || {}).error || '切换失败');
+      }
+
       // 更新状态
       currentCameraStatus = type;
       if (statusCam) statusCam.innerText = camNames[type] || '未知';
       saveSystemState();
-      
+
       // 更新UI
       if (type === 'none') {
         videoFeed.src = '';
         videoFeed.style.display = 'none';
-        // 【关键】关闭摄像头后，隐藏 overlay，不要显示"摄像头已关闭"
         if (overlay) overlay.hidden = true;
       } else {
         videoFeed.style.display = 'block';
         videoFeed.src = `/video_feed?t=${Date.now()}`;
-        // 【关键】开启摄像头后，隐藏 overlay
         if (overlay) overlay.hidden = true;
       }
     } catch (err) {
       if (overlay) { overlay.textContent = '切换失败: ' + err.message; overlay.hidden = false; }
       cameraSelect.value = currentCameraStatus;
-      // 【关键】触发 change 事件，更新开关状态
-      cameraSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      updateSwitchUI(currentCameraStatus);
     }
+    _switchCameraLock = false;
   }
 
   // ===== 模式切换 =====
@@ -265,7 +282,7 @@
 
     const statusMode = $('statusMode');
     if (statusMode) statusMode.innerText =
-      val === 'detection' ? '缺陷检测' : '语义分割';
+      val === 'detection' ? `检测模式 (${yoloName})` : `分割模式 (${unetName})`;
     
     // 【关键】保存系统状态
     saveSystemState();
@@ -280,13 +297,6 @@
       await loadClassOptionsAndSelection();
       await refreshModelStatus();
     } catch (e) { console.error('模型切换失败', e); }
-  }
-
-  if (videoFeed) {
-    ['dragstart', 'gesturestart'].forEach(evt => {
-      videoFeed.addEventListener(evt, e => e.preventDefault());
-      if (canvas) canvas.addEventListener(evt, e => e.preventDefault());
-    });
   }
 
   // ===== 事件轮询 =====
@@ -390,7 +400,6 @@
 
   // ===== 初始化 =====
   async function init() {
-
     // 【关键】尝试恢复系统状态
     const savedState = loadSystemState();
     if (savedState) {
@@ -427,7 +436,19 @@
     try {
       const d = await (await fetch('/get_camera_status')).json();
       console.log('[摄像头状态同步]', d);
-      
+
+      // 辅助函数：直接更新开关按钮 UI（不触发 switchCamera）
+      function updateSwitchUI(status) {
+        const cameraSwitch = document.querySelector('.camera-switch');
+        if (cameraSwitch) {
+          if (status === 'local' || status === 'ip') {
+            cameraSwitch.classList.add('active');
+          } else {
+            cameraSwitch.classList.remove('active');
+          }
+        }
+      }
+
       if (d.is_running) {
         // 摄像头正在运行
         let newStatus = 'local';
@@ -435,9 +456,9 @@
         if (typeof d.camera_source === 'string' && (d.camera_source.startsWith('http://') || d.camera_source.startsWith('rtsp://'))) {
           newStatus = 'ip';
         }
-        
+
         console.log('[摄像头状态] 当前:', currentCameraStatus, '服务器:', newStatus);
-        
+
         if (currentCameraStatus !== newStatus) {
           currentCameraStatus = newStatus;
           cameraSelect.value = newStatus;
@@ -448,9 +469,9 @@
             videoFeed.src = `/video_feed?t=${Date.now()}`;
           }
           console.log('[摄像头状态] 已更新为:', newStatus);
-          
-          // 【关键】触发 change 事件，同步开关按钮状态
-          cameraSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+          // 直接更新开关按钮 UI，不触发 change 事件（避免弹出 IP 输入弹窗）
+          updateSwitchUI(newStatus);
         }
       } else {
         // 摄像头关闭
@@ -465,12 +486,12 @@
             $('overlayMessage').hidden = false;
           }
           console.log('[摄像头状态] 已关闭');
-          
-          // 【关键】触发 change 事件，同步开关按钮状态
-          cameraSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+          // 直接更新开关按钮 UI，不触发 change 事件
+          updateSwitchUI('none');
         }
       }
-    } catch (e) { 
+    } catch (e) {
       console.error('摄像头状态同步失败', e);
     }
   }

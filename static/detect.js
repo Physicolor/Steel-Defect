@@ -37,32 +37,45 @@
     let uploadedFiles = [];
     let currentImageIndex = 0;
     let detectionResults = {};
+    let isDetecting = false;
 
     // 从 sessionStorage 恢复状态
     function restoreState() {
         const savedResult = sessionStorage.getItem('detect_lastResult');
 
         if (savedResult) {
-            lastResult = JSON.parse(savedResult);
-            if (lastResult.image_base64 && lastResult.original_image_base64) {
-                originalImageDisplay.src = `data:image/jpeg;base64,${lastResult.original_image_base64}`;
-                annotatedImageDisplay.src = `data:image/jpeg;base64,${lastResult.image_base64}`;
-                annotatedImageWrapper.hidden = false;
+            try {
+                const parsed = JSON.parse(savedResult);
+                // 只有当缓存中包含 image_base64 时才恢复，防止无效数据干扰
+                if (parsed && parsed.image_base64) {
+                    lastResult = parsed;
+                    if (lastResult.image_base64 && lastResult.original_image_base64) {
+                        originalImageDisplay.src = `data:image/jpeg;base64,${lastResult.original_image_base64}`;
+                        annotatedImageDisplay.src = `data:image/jpeg;base64,${lastResult.image_base64}`;
+                        annotatedImageWrapper.hidden = false;
 
-                if (lastResult.heatmap_base64) {
-                    heatmapImageDisplay.src = `data:image/jpeg;base64,${lastResult.heatmap_base64}`;
-                    heatmapImageWrapper.hidden = false;
+                        if (lastResult.heatmap_base64) {
+                            heatmapImageDisplay.src = `data:image/jpeg;base64,${lastResult.heatmap_base64}`;
+                            heatmapImageWrapper.hidden = false;
+                        }
+
+                        renderResult(lastResult);
+                        detectionDataSection.hidden = false;
+                        emptyState.style.display = 'none';
+                        detectBtn.hidden = true;
+
+                        uploadZone.hidden = true;
+                        imagesContainer.hidden = false;
+
+                        aiAnalysisSection.hidden = false;
+                    }
+                } else {
+                    console.warn('[状态恢复] 检测到无效的历史数据，已忽略');
+                    sessionStorage.removeItem('detect_lastResult');
                 }
-
-                renderResult(lastResult);
-                detectionDataSection.hidden = false;
-                emptyState.style.display = 'none';
-                detectBtn.hidden = true;
-
-                uploadZone.hidden = true;
-                imagesContainer.hidden = false;
-
-                aiAnalysisSection.hidden = false;
+            } catch (e) {
+                console.error('[状态恢复] 解析失败', e);
+                sessionStorage.removeItem('detect_lastResult');
             }
         }
     }
@@ -82,10 +95,12 @@
             originalImageDisplay.src = e.target.result;
             imagesContainer.hidden = false;
             uploadZone.hidden = true;
-            annotatedImageWrapper.hidden = true;
-            heatmapImageWrapper.hidden = true;
-            detectionDataSection.hidden = true;
-            detectBtn.hidden = false;
+            if (!isDetecting) {
+                annotatedImageWrapper.hidden = true;
+                heatmapImageWrapper.hidden = true;
+                detectionDataSection.hidden = true;
+                detectBtn.hidden = false;
+            }
         };
         reader.readAsDataURL(file);
     }
@@ -302,6 +317,7 @@
 
         if (detectionResults[currentImageIndex]) {
             const data = detectionResults[currentImageIndex];
+            lastResult = data;
             annotatedImageDisplay.src = `data:image/jpeg;base64,${data.image_base64}`;
             annotatedImageWrapper.hidden = false;
 
@@ -325,6 +341,7 @@
     detectBtn.addEventListener('click', async () => {
         if (uploadedFiles.length === 0) return;
 
+        isDetecting = true;
         loading.classList.add('active');
         statusText.hidden = true;
         detectBtn.hidden = true;
@@ -360,24 +377,21 @@
                 detectionResults[i] = data;
                 lastResult = data;
 
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    lastResult.original_image_base64 = e.target.result.split(',')[1];
+                // 后端已经返回 original_image_base64，直接使用
+                // 不再需要 FileReader 异步读取
 
-                    annotatedImageDisplay.src = `data:image/jpeg;base64,${data.image_base64}`;
-                    annotatedImageWrapper.hidden = false;
+                annotatedImageDisplay.src = `data:image/jpeg;base64,${data.image_base64}`;
+                annotatedImageWrapper.hidden = false;
 
-                    if (data.heatmap_base64) {
-                        heatmapImageDisplay.src = `data:image/jpeg;base64,${data.heatmap_base64}`;
-                        heatmapImageWrapper.hidden = false;
-                    }
+                if (data.heatmap_base64) {
+                    heatmapImageDisplay.src = `data:image/jpeg;base64,${data.heatmap_base64}`;
+                    heatmapImageWrapper.hidden = false;
+                }
 
-                    renderResult(data);
-                    detectionDataSection.hidden = false;
-                    emptyState.style.display = 'none';
-                    aiAnalysisSection.hidden = false;
-                };
-                reader.readAsDataURL(file);
+                renderResult(data);
+                detectionDataSection.hidden = false;
+                emptyState.style.display = 'none';
+                aiAnalysisSection.hidden = false;
             } catch (err) {
                 showStatus(`图片 ${i + 1} 请求失败: ${err.message}`, 'error');
             }
@@ -387,16 +401,33 @@
 
         loading.classList.remove('active');
         progressContainer.hidden = true;
+        isDetecting = false;
         showStatus('所有图片检测完成', 'success');
         updateNavArrows();
     });
 
     // AI分析功能
     analyzeWithLLMBtn.addEventListener('click', async () => {
-        if (!lastResult || !lastResult.image_base64) {
+        // 打印调试信息，帮助确认状态
+        console.log('[AI分析调试] currentImageIndex:', currentImageIndex);
+        console.log('[AI分析调试] detectionResults:', detectionResults);
+        console.log('[AI分析调试] lastResult:', lastResult);
+
+        // 优先使用当前图片的检测结果，回退到 lastResult
+        let activeResult = detectionResults[currentImageIndex];
+        if (!activeResult || !activeResult.image_base64) {
+            console.log('[AI分析] 当前索引无结果，回退到 lastResult');
+            activeResult = lastResult;
+        }
+
+        if (!activeResult || !activeResult.image_base64) {
+            console.error('[AI分析] 仍无有效结果，请检查是否检测完成');
             showStatus('请先进行图片检测', 'error');
             return;
         }
+        
+        // 同步更新 lastResult
+        lastResult = activeResult;
 
         aiAnalysisResult.style.display = 'block';
         aiAnalysisLoading.hidden = false;
@@ -409,9 +440,12 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    image_base64: lastResult.image_base64,
-                    detections: lastResult.detections || [],
-                    model_type: lastResult.model_type || 'yolo'
+                    image_base64: activeResult.image_base64,
+                    detections: activeResult.detections || [],
+                    model_type: activeResult.model_type || 'yolo',
+                    batch_id: activeResult.batch_id || null,
+                    conf_threshold: activeResult.detection_params?.conf_threshold || 0.25,
+                    iou_threshold: activeResult.detection_params?.iou_threshold || 0.45
                 })
             });
 

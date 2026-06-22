@@ -6,7 +6,7 @@
     <title>钢材缺陷检测系统</title>
     
     <!-- 主样式 -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <link rel="stylesheet" href="/static/style.css" />
     
     <meta name="robots" content="noindex,nofollow">
 </head>
@@ -15,6 +15,11 @@
         <!-- iframe容器：用于平滑切换检测记录页面 -->
         <div id="iframeContainer" class="iframe-container">
             <iframe id="capturesIframe" src="" frameborder="0"></iframe>
+        </div>
+
+        <!-- iframe容器：用于平滑切换个人中心页面 -->
+        <div id="profileIframeContainer" class="iframe-container">
+            <iframe id="profileIframe" src="" frameborder="0"></iframe>
         </div>
         
         <!-- 顶部导航 -->
@@ -36,10 +41,17 @@
                 </div>
             </div>
             <div class="header-actions">
-                <button class="folder-btn" title="检测记录">
+                <button class="profile-btn" title="个人中心" id="profileBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                </button>
+                <button class="folder-btn" title="检测记录" id="folderBtn">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                     </svg>
+                    <span class="preload-indicator" id="preloadIndicator" hidden></span>
                 </button>
                 <button class="settings-btn" title="设置">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -52,7 +64,7 @@
 
         <!-- 主内容 - 三栏布局 -->
         <main class="main three-column-layout">
-            <!-- 左侧面板: 系统状态、模型信息、检测日志 -->
+            <!-- 左侧栏 -->
             <aside class="left-sidebar">
                 <div class="sidebar-content">
                 <!-- 系统状态 -->
@@ -119,7 +131,7 @@
                 </select>
                 
                 <!-- 视频检测区域 -->
-                <div id="videoDetectionSection" class="detection-section">
+                <div id="videoDetectionSection" class="detection-section" hidden>
                     <div class="video-card">
                         <!-- 摄像头标题栏 -->
                         <div class="camera-header">
@@ -132,7 +144,7 @@
                         </div>
                         
                         <div id="video-box" class="video-box">
-                            <img id="videoFeed" src="{{ url_for('video_feed') }}" alt="视频流" draggable="false" />
+                            <img id="videoFeed" src="/video_feed" alt="视频流" draggable="false" />
                             <canvas id="canvas"></canvas>
                             <div id="overlayMessage" class="overlay-message" hidden>请选择摄像头源</div>
                         </div>
@@ -142,15 +154,19 @@
                         </div>
                     </div>
 
+                    <!-- 下方设置 -->
+                    <div class="below-video-settings">
+                        <!-- 红框缺陷已移至右侧 -->
+                    </div>
                 </div>
 
-                <!-- 图片检测区域(默认隐藏) -->
-                <div id="imageDetectionSection" class="detection-section" hidden>
+                <!-- 图片检测区域(默认显示) -->
+                <div id="imageDetectionSection" class="detection-section">
                     <div class="upload-panel" id="uploadPanel">
                         <div class="camera-header">
                             <div class="camera-title">上传图片</div>
                             <div class="camera-header-actions">
-                                <button id="splitViewBtn" class="btn" title="分屏模式" hidden>
+                                <button id="splitViewBtn" class="btn" title="分屏模式">
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                                         <line x1="12" y1="3" x2="12" y2="21"></line>
@@ -204,7 +220,7 @@
                                             
                             <!-- 未分析时的提示 -->
                             <div id="splitNoAnalysis" class="split-ai-section no-analysis-hint">
-                            <div class="split-no-analysis-hint">上传图片并检测后，点击"开始AI分析"获取智能报告</div>
+                            <div class="split-no-analysis-hint">请先上传图片并点击"检测"按钮，完成后再点击"开始AI分析"</div>
                             </div>
                         </div>
                 
@@ -300,8 +316,8 @@
                             </div>
                             <div class="custom-select-options" id="modelDropdownOptions">
                                 <div class="custom-select-options-inner">
-                                    <div class="custom-option active" data-value="yolo" onclick="selectModelOption('yolo')">YOLO</div>
-                                    <div class="custom-option" data-value="unet" onclick="selectModelOption('unet')">UNet（暂未开放）</div>
+                                    <div class="custom-option active" data-value="yolo" onclick="selectModel('yolo')">YOLO</div>
+                                    <div class="custom-option" data-value="unet" onclick="selectModel('unet')">UNet</div>
                                 </div>
                             </div>
                         </div>
@@ -370,14 +386,143 @@
                 </div><!-- /.sidebar-content -->
             </aside>
         </main>
-        
+
         <footer class="app-footer">
             钢材缺陷检测系统 · Built with YOLO26
         </footer>
     </div>
 
     <!-- 脚本 -->
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="/static/app.js"></script>
+    
+    <!-- 分屏模式样式 -->
+    <style>
+        /* AI侧栏按钮激活状态 */
+        #splitViewBtn.active {
+            background: var(--primary) !important;
+            border-color: var(--primary) !important;
+            color: white !important;
+        }
+        
+        #splitViewBtn.active:hover {
+            background: var(--primary-dark) !important;
+            border-color: var(--primary-dark) !important;
+            box-shadow: var(--shadow-lg) !important;
+        }
+        
+        /* 分屏模式动画 - 只对必要的属性做过渡 */
+        #uploadPanel {
+            transition: gap 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* 左侧内容wrapper基础样式 */
+        .split-left-content {
+            width: 100%;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;              /* 【关键修复】wrapper使用flex布局 */
+            flex-direction: column;     /* 【关键修复】子元素纵向排列 */
+        }
+        
+        /* 【关键修复】分屏动画期间，禁用子元素的transition避免抽搐 */
+        .split-left-content * {
+            transition: none !important;
+        }
+        
+        /* 分屏模式下的样式 */
+        .split-view-mode #uploadPanel {
+            display: flex !important;
+            flex-direction: row !important;
+            gap: 0 !important;  /* 禁用gap，由子元素自己处理间距 */
+            padding: 0 !important;  /* 【关键修复】移除padding，由子元素自己处理 */
+            align-items: flex-start !important;  /* 【关键修复】防止子元素高度被拉伸 */
+        }
+        
+        .split-view-mode .split-left-content {
+            width: 45% !important;
+            padding: var(--spacing-md) !important;  /* wrapper自己处理padding */
+            padding-right: calc(var(--spacing-md) + 16px) !important;  /* 右边额外留出间距 */
+            border-right: 1px solid var(--border) !important;
+            align-self: flex-start !important;  /* 【关键修复】wrapper不被拉伸 */
+        }
+        
+        /* AI面板 - 非分屏模式下完全隐藏 */
+        #splitAIAnalysisPanel {
+            display: none;
+        }
+        
+        /* 分屏模式下显示AI面板并做动画 */
+        .split-view-mode #splitAIAnalysisPanel {
+            display: block !important;
+            max-width: 9999px;  /* 足够大的值 */
+            opacity: 1;
+            flex: 1;
+            overflow-y: auto;
+            max-height: calc(100vh - 200px);
+            background: var(--bg-card) !important;
+            border-radius: var(--radius-lg) !important;
+            padding: var(--spacing-md) !important;  /* AI面板四周统一padding */
+            animation: fadeInPanel 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        @keyframes fadeInPanel {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .split-ai-section {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* 分屏模式下的camera-header样式 */
+        .split-view-mode #splitAIAnalysisPanel .camera-header {
+            margin-bottom: 16px;
+        }
+        
+        .split-ai-content {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 16px;
+            line-height: 1.6;
+        }
+        
+        .split-ai-content strong {
+            color: var(--primary);
+            font-weight: 600;
+        }
+        
+        .btn.icon-btn {
+            padding: 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .btn.icon-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .btn.icon-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+    </style>
     
     <!-- 检测参数调节和图片检测相关脚本 -->
     <script>
@@ -763,6 +908,22 @@
             }
         }
         
+        // 切换模型
+        function changeModel() {
+            const modelSelect = document.getElementById('modelSelect');
+            currentModel = modelSelect.value;
+            
+            // 这里可以添加切换模型的后端调用
+            console.log('切换模型到:', currentModel);
+            
+            // TODO: 调用后端API切换模型
+            // await fetch('/set_model', {
+            //     method: 'POST',
+            //     headers: { 'Content-Type': 'application/json' },
+            //     body: JSON.stringify({ model: currentModel })
+            // });
+        }
+        
         // 自定义下拉框交互
         let isModelDropdownOpen = false;
         
@@ -783,41 +944,28 @@
             }
         }
         
-        // 自定义提示弹窗（替代浏览器alert）
-        function showAlert(message, title) {
-            document.getElementById('alertMessageText').textContent = message;
-            document.getElementById('alertTitle').textContent = title || '提示';
-            document.getElementById('alertModal').classList.add('active');
-        }
-        function closeAlertModal(event) {
-            if (event && event.target !== event.currentTarget) return;
-            document.getElementById('alertModal').classList.remove('active');
-        }
-
-        // 选择模型选项
-        function selectModelOption(value) {
-            if (value === 'unet') {
-                showAlert('UNet语义分割模型暂未开放，请使用YOLO检测模型');
-                toggleModelDropdown();
-                return;
-            }
-            // 更新显示文本
-            const displayText = document.getElementById('modelSelectText');
-            const options = document.getElementById('modelDropdownOptions').querySelectorAll('.custom-option');
-            options.forEach(opt => {
-                opt.classList.toggle('active', opt.getAttribute('data-value') === value);
+        // 选择模型
+        function selectModel(model) {
+            currentModel = model;
+            
+            // 更新显示文字
+            const textElement = document.getElementById('modelSelectText');
+            textElement.textContent = model === 'yolo' ? 'YOLO' : 'UNet';
+            
+            // 更新active状态
+            document.querySelectorAll('.custom-option').forEach(option => {
+                option.classList.remove('active');
             });
-            if (displayText) displayText.textContent = value === 'yolo' ? 'YOLO' : 'UNet';
-            currentModel = value;
-            // 同步更新隐藏的 mode 下拉并触发模式切换
-            const modeSelect = document.getElementById('mode');
-            if (modeSelect) {
-                modeSelect.value = value === 'yolo' ? 'detection' : 'segmentation';
-                modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-            }
+            document.querySelector(`.custom-option[data-value="${model}"]`).classList.add('active');
+            
+            // 关闭下拉框
             toggleModelDropdown();
+            
+            console.log('切换模型到:', currentModel);
+            
+            // TODO: 调用后端API切换模型
         }
-
+        
         // 点击其他地方关闭下拉框
         document.addEventListener('click', (e) => {
             const wrapper = document.getElementById('modelSelectWrapper');
@@ -835,6 +983,17 @@
                 updateSliderPosition('image');
             }, 100);
         });
+
+        // 面板折叠功能
+        function togglePanel(panelId) {
+            const panel = document.getElementById(panelId);
+            
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+            } else {
+                panel.style.display = 'none';
+            }
+        }
 
         // 图片检测相关变量
         const uploadZone = document.getElementById('uploadZone');
@@ -1053,13 +1212,15 @@
                 const data = detectionResults[currentImageIndex];
                 annotatedImageDisplay.src = `data:image/jpeg;base64,${data.image_base64}`;
                 annotatedImageWrapper.hidden = false;
-                
+
                 if (data.heatmap_base64) {
                     heatmapImageDisplay.src = `data:image/jpeg;base64,${data.heatmap_base64}`;
                     heatmapImageWrapper.hidden = false;
                 }
                 renderResult(data);
                 detectionDataSection.hidden = false;
+                // 更新lastResult为当前图片的检测结果，供AI分析使用
+                lastResult = data;
             } else {
                 // 没有结果则隐藏标注图和热力图
                 annotatedImageWrapper.hidden = true;
@@ -1104,6 +1265,7 @@
                     }
 
                     detectionResults[i] = data;
+                    lastResult = data;  // 更新lastResult，供AI分析使用
                     console.log('[检测结果] ✅ 图片', i + 1, '检测完成, batch_id:', data.batch_id);
                     
                     showStatus(`图片 ${i + 1} 检测完成`, 'success');
@@ -1128,7 +1290,7 @@
         if (analyzeWithLLMBtn) {
             analyzeWithLLMBtn.addEventListener('click', async () => {
                 if (!lastResult || !lastResult.image_base64) {
-                    showStatus('请先进行图片检测', 'error');
+                    showStatus('请先上传图片并点击"检测"按钮完成检测', 'error');
                     return;
                 }
 
@@ -1160,10 +1322,27 @@
 
                     renderAIAnalysis(data.analysis);
                     showStatus('AI分析完成', 'success');
-                    
+
                     // 保存AI分析结果到sessionStorage
                     sessionStorage.setItem('aiAnalysisText', data.analysis);
-                    
+
+                    // 保存AI分析结果到后端info文件（如果有batch_id）
+                    if (lastResult.batch_id) {
+                        try {
+                            await fetch('/save_ai_analysis', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    batch_id: lastResult.batch_id,
+                                    analysis: data.analysis
+                                })
+                            });
+                            console.log('[AI分析] 结果已保存到后端');
+                        } catch (saveErr) {
+                            console.warn('[AI分析] 保存到后端失败:', saveErr);
+                        }
+                    }
+
                     // 如果处于分屏模式，也更新分屏面板
                     if (isSplitViewMode) {
                         renderSplitAIAnalysis(data.analysis);
@@ -1201,18 +1380,33 @@
             // 清理AI输出文本
             let cleanedText = cleanAIOutput(analysisText);
             
-            let html = cleanedText
-                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-                .replace(/^## (.*$)/gim, '<h3>$1</h3>')
-                .replace(/^# (.*$)/gim, '<h4>$1</h4>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/^\- (.*$)/gim, '<li>$1</li>')
-                .replace(/^\d+\. (.*$)/gim, '<li>$1</li>')
-                .replace(/\n/g, '<br>');
+            // 按段落分割
+            const paragraphs = cleanedText.split('\n').filter(p => p.trim());
             
-            html = html.replace(/(<li>.*<\/li>)/gims, '<ul>$1</ul>');
-            html = html.replace(/<\/ul>\s*<ul>/g, '');
+            let html = '';
+            paragraphs.forEach(para => {
+                para = para.trim();
+                
+                // 检测标题（以【】包裹的文本）
+                if (para.startsWith('【') && para.includes('】')) {
+                    const title = para.replace(/【|】/g, '');
+                    html += `<h4>${title}</h4>`;
+                }
+                // 检测 **标题** 格式（Markdown加粗作为标题）
+                else if (/^\*\*.+\*\*$/.test(para)) {
+                    const title = para.replace(/^\*\*|\*\*$/g, '');
+                    html += `<h4 style="color: var(--primary);">${title}</h4>`;
+                }
+                // 检测列表项（以 - 或 • 开头）
+                else if (para.startsWith('- ') || para.startsWith('• ')) {
+                    const content = para.substring(2);
+                    html += `<p>• ${content}</p>`;
+                }
+                // 普通段落
+                else {
+                    html += `<p>${para}</p>`;
+                }
+            });
             
             if (aiAnalysisContent) aiAnalysisContent.innerHTML = html;
         }
@@ -1226,7 +1420,7 @@
             // 1. 清理每一行：去除首尾空格
             lines = lines.map(line => line.trim());
             
-            // 2. 处理【标题】格式，转为加粗并去掉【】
+            // 2. 处理【标题】格式，转为 **标题** 格式（保留以便后续格式化）
             lines = lines.map(line => {
                 // 将 【标题】 替换为 **标题**
                 return line.replace(/^【(.+?)】\s*$/, '**$1**');
@@ -1240,7 +1434,19 @@
             // 4. 过滤掉所有空行
             let cleanedLines = lines.filter(line => line !== '');
             
-            return cleanedLines.join('\n');
+            let result = cleanedLines.join('\n');
+            
+            // 5. 清理部分 Markdown 格式符号（保留 ** 用于标题识别）
+            // 移除 # 标题标记
+            result = result.replace(/^#+\s+/gm, '');
+            // 移除 > 引用标记
+            result = result.replace(/^>\s+/gm, '');
+            // 移除 --- 分隔线
+            result = result.replace(/^---+$/gm, '');
+            // 移除 ` 代码标记
+            result = result.replace(/`/g, '');
+            
+            return result;
         }
 
         function renderResult(data) {
@@ -1455,55 +1661,47 @@
             }
         }
         
-        // ==================== Sidebar高度同步 ====================
-        // 让左右sidebar的高度始终占满可用空间（CSS已设置height: 100%）
-        function syncSidebarHeight() {
-            const leftSidebar = document.querySelector('.left-sidebar');
-            const rightSidebar = document.querySelector('.right-sidebar');
-            
-            // CSS已经设置了height: 100%，这里只需要更新阴影
-            if (leftSidebar && rightSidebar) {
-                // 检查是否需要滚动，并添加/移除阴影
-                updateSidebarShadow(leftSidebar);
-                updateSidebarShadow(rightSidebar);
-            }
-        }
-        
-        // 检查sidebar是否需要滚动，并更新底部内阴影
-        function updateSidebarShadow(sidebar) {
-            if (!sidebar) return;
-            
-            // 检查内容是否超出容器高度（需要滚动）
-            const needsScroll = sidebar.scrollHeight > sidebar.clientHeight;
-            
-            if (needsScroll) {
-                sidebar.classList.add('sidebar-shadow');
-            } else {
-                sidebar.classList.remove('sidebar-shadow');
-            }
-        }
-        
-        // 页面加载时同步高度
-        window.addEventListener('load', syncSidebarHeight);
-        
-        // DOM加载完成后也调用一次（确保初始阴影正确）
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(syncSidebarHeight, 100);
-        });
-        
-        // 窗口大小改变时重新同步
-        window.addEventListener('resize', syncSidebarHeight);
-        
-        // 检测模式切换时也需要同步（视频/图片切换）
-        document.querySelectorAll('.mode-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                // 延迟执行，等待DOM更新
-                setTimeout(syncSidebarHeight, 100);
-            });
-        });
-        
         // 全局变量：记录iframe是否已加载
         let capturesIframeLoaded = false;
+        
+        // 页面加载完成后，预加载检测记录数据（后台预热缓存）
+        window.addEventListener('load', () => {
+            console.log('[预加载] 页面加载完成，开始预加载检测记录...');
+            
+            // 显示预加载指示器
+            const preloadIndicator = document.getElementById('preloadIndicator');
+            if (preloadIndicator) {
+                preloadIndicator.hidden = false;
+                preloadIndicator.classList.remove('success');
+            }
+            
+            // 延迟500ms后开始预加载，避免影响首页渲染
+            setTimeout(() => {
+                fetch('/captures_data')
+                    .then(response => response.json())
+                    .then(data => {
+                        const recordCount = data.data ? data.data.length : 0;
+                        const cached = data.cached || false;
+                        console.log(`[预加载] ✅ 检测记录预加载完成！记录数: ${recordCount}, 缓存: ${cached}`);
+                        
+                        // 更新指示器为成功状态
+                        if (preloadIndicator) {
+                            preloadIndicator.classList.add('success');
+                            // 2秒后隐藏指示器
+                            setTimeout(() => {
+                                preloadIndicator.hidden = true;
+                            }, 2000);
+                        }
+                    })
+                    .catch(error => {
+                        console.warn('[预加载] ⚠️ 预加载失败（不影响正常使用）:', error);
+                        // 失败时隐藏指示器
+                        if (preloadIndicator) {
+                            preloadIndicator.hidden = true;
+                        }
+                    });
+            }, 500);
+        });
         
         // 文件夹按钮点击事件：使用iframe切换检测记录页面
         document.querySelector('.folder-btn').addEventListener('click', () => {
@@ -1564,18 +1762,61 @@
             console.log('[iframe切换] 已显示检测记录页面');
         });
         
+        // 个人中心按钮点击事件：使用iframe切换个人中心页面（toggle）
+        let profileIframeLoaded = false;
+        let isProfileVisible = false;
+        const profileBtn = document.getElementById('profileBtn');
+        const profileIframeContainer = document.getElementById('profileIframeContainer');
+        const profileIframe = document.getElementById('profileIframe');
+
+        profileBtn.addEventListener('click', () => {
+            console.log('[iframe切换] 点击了个人中心按钮, isProfileVisible:', isProfileVisible);
+
+            if (isProfileVisible) {
+                // 当前显示个人中心 → 隐藏，回到主页
+                profileIframeContainer.classList.remove('active');
+                profileBtn.classList.remove('active');
+                isProfileVisible = false;
+            } else {
+                // 当前隐藏个人中心 → 显示
+                // 先隐藏检测记录iframe（如果在显示）
+                const iframeContainer = document.getElementById('iframeContainer');
+                iframeContainer.classList.remove('active');
+                document.querySelector('.folder-btn')?.classList.remove('active');
+
+                // 如果是第一次加载，设置src
+                if (!profileIframeLoaded) {
+                    profileIframe.src = '/profile';
+                    profileIframeLoaded = true;
+                }
+
+                profileIframeContainer.classList.add('active');
+                profileBtn.classList.add('active');
+                isProfileVisible = true;
+            }
+        });
+
         // 监听来自iframe的消息
         window.addEventListener('message', (event) => {
             // 验证消息来源
             if (event.origin !== window.location.origin) return;
-            
+
             // 处理返回主页的消息
             if (event.data && event.data.action === 'navigateToHome') {
                 console.log('[iframe切换] 收到返回主页消息');
                 const iframeContainer = document.getElementById('iframeContainer');
-                
+
                 // 直接隐藏iframe容器，无动画
                 iframeContainer.classList.remove('active');
+                document.querySelector('.folder-btn')?.classList.remove('active');
+            }
+
+            // 处理从个人中心返回的消息
+            if (event.data && event.data.action === 'closeProfile') {
+                console.log('[iframe切换] 收到关闭个人中心消息');
+                profileIframeContainer.classList.remove('active');
+                profileBtn.classList.remove('active');
+                isProfileVisible = false;
             }
         });
         
@@ -1661,18 +1902,33 @@
             // 清理AI输出文本
             let cleanedText = cleanAIOutput(analysisText);
             
-            let html = cleanedText
-                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-                .replace(/^## (.*$)/gim, '<h3>$1</h3>')
-                .replace(/^# (.*$)/gim, '<h4>$1</h4>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/^\- (.*$)/gim, '<li>$1</li>')
-                .replace(/^\d+\. (.*$)/gim, '<li>$1</li>')
-                .replace(/\n/g, '<br>');
+            // 按段落分割
+            const paragraphs = cleanedText.split('\n').filter(p => p.trim());
             
-            html = html.replace(/(<li>.*<\/li>)/gims, '<ul>$1</ul>');
-            html = html.replace(/<\/ul>\s*<ul>/g, '');
+            let html = '';
+            paragraphs.forEach(para => {
+                para = para.trim();
+                
+                // 检测标题（以【】包裹的文本）
+                if (para.startsWith('【') && para.includes('】')) {
+                    const title = para.replace(/【|】/g, '');
+                    html += `<h4>${title}</h4>`;
+                }
+                // 检测 **标题** 格式（Markdown加粗作为标题）
+                else if (/^\*\*.+\*\*$/.test(para)) {
+                    const title = para.replace(/^\*\*|\*\*$/g, '');
+                    html += `<h4 style="color: var(--primary);">${title}</h4>`;
+                }
+                // 检测列表项（以 - 或 • 开头）
+                else if (para.startsWith('- ') || para.startsWith('• ')) {
+                    const content = para.substring(2);
+                    html += `<p>• ${content}</p>`;
+                }
+                // 普通段落
+                else {
+                    html += `<p>${para}</p>`;
+                }
+            });
             
             splitAIAnalysisContent.innerHTML = html;
             splitAIAnalysisResult.hidden = false;  // 移除hidden属性而不是设置display
@@ -1682,7 +1938,7 @@
         // 分屏模式的AI分析按钮点击事件
         splitAnalyzeWithLLMBtn.addEventListener('click', async () => {
             if (!lastResult || !lastResult.image_base64) {
-                showStatus('请先进行图片检测', 'error');
+                showStatus('请先上传图片并点击"检测"按钮完成检测', 'error');
                 return;
             }
             
@@ -1715,10 +1971,27 @@
                 
                 renderSplitAIAnalysis(data.analysis);
                 showStatus('AI分析完成', 'success');
-                
+
                 // 保存AI分析结果到sessionStorage
                 sessionStorage.setItem('aiAnalysisText', data.analysis);
-                
+
+                // 保存AI分析结果到后端info文件（如果有batch_id）
+                if (lastResult.batch_id) {
+                    try {
+                        await fetch('/save_ai_analysis', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                batch_id: lastResult.batch_id,
+                                analysis: data.analysis
+                            })
+                        });
+                        console.log('[AI分析] 结果已保存到后端');
+                    } catch (saveErr) {
+                        console.warn('[AI分析] 保存到后端失败:', saveErr);
+                    }
+                }
+
                 // 也更新右侧面板（如果存在）
                 renderAIAnalysis(data.analysis);
                 if (aiAnalysisResult) aiAnalysisResult.style.display = 'block';
@@ -1914,7 +2187,7 @@
             }
         }, 0);
     </script>
-    
+
     <!-- IP地址输入弹窗 -->
     <div id="ipAddressModal" class="modal" onclick="handleIPModalClick(event)">
         <div class="ip-modal-content">
@@ -1929,20 +2202,7 @@
             </div>
         </div>
     </div>
-
-    <!-- 自定义提示弹窗（替代浏览器alert） -->
-    <div id="alertModal" class="modal" onclick="closeAlertModal(event)">
-        <div class="confirm-modal-content">
-            <div class="confirm-title" id="alertTitle">提示</div>
-            <div class="confirm-message">
-                <span id="alertMessageText"></span>
-            </div>
-            <div class="confirm-buttons">
-                <button class="confirm-btn confirm-delete-btn" onclick="closeAlertModal()">确定</button>
-            </div>
-        </div>
-    </div>
-
+    
     <!-- 设置面板 -->
     <div class="settings-overlay" id="settingsOverlay"></div>
     <div class="settings-panel" id="settingsPanel">

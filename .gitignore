@@ -35,19 +35,16 @@ ENV/
 *.swo
 *~
 
-# 运行时生成的数据文件(保留示例但忽略实际数据)
+# 运行时生成的数据文件
 captures/
-captures特殊/
+data/
 records.json
 model_config.json
 
 # 模型权重文件（体积大，建议单独管理）
-# *.pt - 已注释，允许上传YOLO模型
-*.pth
+models/*.pt
+models/*.pth
 *.onnx
-
-# 允许上传特定的YOLO模型
-!best (1).pt
 
 # 音频文件
 *.wav
@@ -57,7 +54,11 @@ uploads/*
 !uploads/.gitkeep
 
 # 日志文件
+logs/
 *.log
+
+# 工具生成的文件
+.understand-anything/
 
 # OS
 .DS_Store

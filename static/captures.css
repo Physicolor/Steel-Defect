@@ -201,13 +201,16 @@
         }
         
         .custom-select-options {
-            position: relative;
-            margin-top: 0;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 20px;
             box-shadow: var(--shadow-sm);
             overflow: hidden;
+            z-index: 1000;
             display: grid;
             grid-template-rows: 0fr;
             transform-origin: top center;
